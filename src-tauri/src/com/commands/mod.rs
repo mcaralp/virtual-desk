@@ -1,5 +1,6 @@
 mod cmd_cancel;
-mod cmd_config;
+mod cmd_read_config;
+mod cmd_watch_config;
 mod cmd_shell;
 mod util;
 
@@ -12,7 +13,8 @@ use crate::com::{Emitter, CommandRequest, Error};
 pub enum CommandType
 {
     ShellCmd,
-    ConfigCmd,
+    ReadConfigCmd,
+    WatchConfigCmd,
     CancelCmd
 }
 
@@ -21,8 +23,9 @@ pub fn convert_command_type(cmd: u32) -> Option<CommandType>
     match cmd
     {
         1 => Some(CommandType::ShellCmd),
-        2 => Some(CommandType::ConfigCmd),
-        3 => Some(CommandType::CancelCmd),
+        2 => Some(CommandType::ReadConfigCmd),
+        3 => Some(CommandType::WatchConfigCmd),
+        4 => Some(CommandType::CancelCmd),
         _ => None,
     }
 }
@@ -121,9 +124,13 @@ impl CommandDispatch
             {
                 cmd_shell::cmd_shell(&self.context, &command.uuid, &command.params).await?;
             }
-            CommandType::ConfigCmd =>
+            CommandType::ReadConfigCmd =>
             {
-                cmd_config::cmd_config(&self.context, &command.uuid).await?;
+                cmd_read_config::cmd_config(&self.context, &command.uuid).await?;
+            }
+            CommandType::WatchConfigCmd =>
+            {
+                cmd_watch_config::cmd_config(&self.context, &command.uuid).await?;
             }
             CommandType::CancelCmd =>
             {

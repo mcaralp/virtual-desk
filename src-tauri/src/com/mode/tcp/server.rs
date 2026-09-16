@@ -1,10 +1,10 @@
-use serde::Serialize;
-use postcard::{to_allocvec, from_bytes};
+use postcard::from_bytes;
 use tokio_util::bytes::BytesMut;
 use tokio::net::{TcpListener, TcpStream};
 use crate::com::{Error, CommandResponse, Emitter, TauriEmitter, WindowGuard};
 use crate::config::{ConfigReceiver, Mode, TcpServerConfig};
 use crate::command::CommandReceiver;
+use super::util::{encode, decode_frame};
 
 pub struct TcpServerCom
 {
@@ -28,7 +28,7 @@ impl TcpServerCom
         -> Result<(), Error>
     {
         let _window = WindowGuard::new(self.app.clone())?;
-        let listener = TcpListener::bind(("0.0.0.0", self.config.port)).await?;
+        let listener = TcpListener::bind((self.config.host.address.as_str(), self.config.host.port)).await?;
 
         loop
         {
@@ -90,29 +90,12 @@ impl TcpServerCom
     async fn handle_incoming_data(&mut self)
         -> Result<(), Error>
     {
-        loop
+        while let Some((cmd, payload)) = decode_frame(&mut self.buffer)
         {
-            const HEADER_SIZE: usize = 8;
-            if self.buffer.len() < HEADER_SIZE
-            {
-                break;
-            }
-
-            let cmd = u32::from_le_bytes([self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]]);
-            let len = u32::from_le_bytes([self.buffer[4], self.buffer[5], self.buffer[6], self.buffer[7]]) as usize;
-
-            if self.buffer.len() < HEADER_SIZE + len
-            {
-                break;
-            }
-
-            let frame = self.buffer.split_to(HEADER_SIZE + len);
-            let payload =  &frame[HEADER_SIZE..];
-
             match cmd
             {
                 0 => {
-                    let res = from_bytes::<CommandResponse>(payload)?;
+                    let res = from_bytes::<CommandResponse>(&payload)?;
                     match res.result {
                         Ok(data) => self.emitter.emit(&res.uuid, data.last, &data.data).await?,
                         Err(err) => self.emitter.emit_error(&res.uuid, &err).await?,
@@ -131,7 +114,7 @@ impl TcpServerCom
         {
             if let Mode::TcpServer(remote_config) = &config.mode
             {
-                if self.config != *remote_config
+                if self.config.host != remote_config.host
                 {
                     return Err(Error::Other("Configuration changed".to_string()));
                 }
@@ -143,18 +126,4 @@ impl TcpServerCom
         }
         Ok(())
     }
-}
-
-fn encode<T: Serialize>(cmd: u32, value: &T)
-    -> Result<Vec<u8>, Error>
-{
-    let payload = to_allocvec(value)?;
-    let size = u32::try_from(payload.len())?;
-    let mut frame = Vec::with_capacity(4 + 4 + payload.len());
-
-    frame.extend_from_slice(&cmd.to_le_bytes());
-    frame.extend_from_slice(&size.to_le_bytes());
-    frame.extend_from_slice(&payload);
-
-    Ok(frame)
 }

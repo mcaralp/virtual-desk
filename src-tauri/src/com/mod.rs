@@ -57,10 +57,9 @@ pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandRecei
         },
         Mode::TcpClient(tcp_client_config) =>
         {
-            let mut com = TcpClientCom::new(config_receiver, command_receiver, tcp_client_config);
+            let mut com = TcpClientCom::new(config_receiver, tcp_client_config);
             com.run().await
-        },
-        _ => Err(Error::Other("Unknown mode".to_string()))
+        }
     }
 }
 
