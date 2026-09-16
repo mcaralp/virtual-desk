@@ -52,9 +52,21 @@ async function updateConfig(newConfig: AppConfig)
     const posY = monitorY + parseValue(windowConfig.position.y, monitorH) - originY
 
     const win = getCurrentWindow()
+    await win.setDecorations(windowConfig.decorations)
     await win.setSize(new LogicalSize(width, height))
     await win.setPosition(new LogicalPosition(posX, posY))
-    await win.setDecorations(windowConfig.decorations)
+
+    // Check for invisible window borders on Windows and adjust position accordingly
+    const scale = await win.scaleFactor()
+    const outer = await win.outerPosition()
+    const inner = await win.innerPosition()
+    const borderX = (inner.x - outer.x) / scale
+    const borderY = (inner.y - outer.y) / scale
+    if (borderX !== 0 || borderY !== 0)
+    {
+        await win.setPosition(new LogicalPosition(posX - borderX, posY - borderY))
+    }
+
     await win.setAlwaysOnTop(windowConfig.pinned)
     await win.show()
 }
@@ -71,18 +83,24 @@ const mainStyle = computed(() => {
 })
 
 onMounted(async () => {
+
+    while(true)
+    {
     const configRequest = await Command.init(CommandType.ConfigCommand, null)
 
-    try
-    {
-        while(!configRequest.isFinished())
+        try
         {
-            const newConfig = await configRequest.read();
-            updateConfig(newConfig);
+            while(!configRequest.isFinished())
+            {
+                const newConfig = await configRequest.read();
+                updateConfig(newConfig);
+            }
         }
-    }
-    catch (e) {
-        console.error(e)
+        catch (e) {
+            console.error(e)
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
     }
 })
 

@@ -5,6 +5,7 @@ use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, Recom
 use tokio::sync::broadcast;
 
 use crate::config::Error;
+use crate::config::app::AppConfig;
 use crate::config::util;
 
 pub struct ConfigReceiver
@@ -29,7 +30,7 @@ impl ConfigReceiver
         Ok(())
     }
 
-    pub fn read_config(&self) -> Result<crate::config::app::AppConfig, Error>
+    pub fn read_config(&self) -> Result<AppConfig, Error>
     {
         util::read_config(&self.config_path)
     }
@@ -42,12 +43,25 @@ pub struct ConfigWatcher
     config_path: String,
 }
 
+impl Drop for ConfigWatcher
+{
+    fn drop(&mut self)
+    {
+        self.stop();
+    }
+}
+
 impl ConfigWatcher
 {
     pub fn new(config_path: &str) -> Self
     {
         let (tx, _) = broadcast::channel(16);
         Self { debouncer: Mutex::new(None), tx, config_path: config_path.to_string() }
+    }
+
+    pub fn read_config(&self) -> Result<crate::config::app::AppConfig, Error>
+    {
+        util::read_config(&self.config_path)
     }
 
     pub fn start(&self) -> Result<(), Error>
@@ -95,3 +109,4 @@ impl ConfigWatcher
         }
     }
 }
+

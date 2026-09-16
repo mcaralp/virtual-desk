@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::config::{ConfigReceiver, ConfigWatcher, Mode, AppConfig};
 use crate::command::{CommandReceiver, CommandState};
 
-pub use mode::LocalCom;
+pub use mode::{LocalCom, TcpServerCom, TcpClientCom};
 pub use error::Error;
 pub use emitter::{Emitter, TauriEmitter, MpscEmitter};
 pub use window_guard::WindowGuard;
@@ -40,69 +40,51 @@ pub struct CommandResponse
     pub result: Result<CommandResponseData, String>,
 }
 
-pub enum CommandType
-{
-    ShellCmd,
-    ConfigCmd,
-    CancelCmd
-}
-
-pub fn convert_command_type(cmd: u32) -> Option<CommandType>
-{
-    match cmd
-    {
-        1 => Some(CommandType::ShellCmd),
-        2 => Some(CommandType::ConfigCmd),
-        3 => Some(CommandType::CancelCmd),
-        _ => None,
-    }
-}
-
-pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, config: AppConfig)
+pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: tauri::AppHandle, config: AppConfig)
     -> Result<(), Error>
 {
     match config.mode
     {
         Mode::Local(_) =>
         {
-            let mut com = LocalCom::new(config_receiver, command_receiver);
+            let mut com = LocalCom::new(config_receiver, command_receiver, app);
             com.run().await
         },
         Mode::TcpServer(remote_config) =>
         {
-            let mut com = mode::tcp_server::TcpServerCom::new(config_receiver, command_receiver, remote_config);
+            let mut com = TcpServerCom::new(config_receiver, command_receiver, remote_config, app);
             com.run().await
         },
         Mode::TcpClient(tcp_client_config) =>
         {
-            let mut com = mode::tcp_client::TcpClientCom::new(config_receiver, command_receiver, tcp_client_config);
+            let mut com = TcpClientCom::new(config_receiver, command_receiver, tcp_client_config);
             com.run().await
         },
         _ => Err(Error::Other("Unknown mode".to_string()))
     }
 }
 
-pub fn setup(config_watcher: ConfigWatcher, command_state: CommandState)
+pub fn setup(config_path: String, app: tauri::AppHandle)
     -> Result<(), Error>
 {
-    // let handle: tauri::AppHandle = app.handle().clone();
-    // let com = Com::None;
-    // let state = Mutex::new(com);
-    // app.manage(state);
-
-
     tauri::async_runtime::spawn(async move 
-    {
+    { 
+        let config_watcher = ConfigWatcher::new(&config_path);
+        let res = config_watcher.start();
+        if let Err(e) = res {
+            eprintln!("Error starting config watcher: {:?}", e);
+            return;
+        }
+        let command_state = CommandState::new(app.clone());
+        command_state.start();
+
         loop
         {
-            let config_receiver = config_watcher.subscribe();
-            let command_receiver = command_state.get_receiver();
-
-            match config_receiver.read_config()
+            match config_watcher.read_config()
             {
                 Ok(config) => 
                 {
-                    let err = run(config_receiver.clone(), command_receiver.clone(), config).await;
+                    let err = run(config_watcher.subscribe(), command_state.subscribe(), app.clone(), config ).await;
                     if let Err(e) = err
                     {
                         eprintln!("Error running com: {:?}", e);

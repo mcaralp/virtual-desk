@@ -7,7 +7,25 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 use crate::config::{ConfigReceiver, AppConfig};
-use crate::com::{Emitter, CommandRequest, CommandType, convert_command_type, Error};
+use crate::com::{Emitter, CommandRequest, Error};
+
+pub enum CommandType
+{
+    ShellCmd,
+    ConfigCmd,
+    CancelCmd
+}
+
+pub fn convert_command_type(cmd: u32) -> Option<CommandType>
+{
+    match cmd
+    {
+        1 => Some(CommandType::ShellCmd),
+        2 => Some(CommandType::ConfigCmd),
+        3 => Some(CommandType::CancelCmd),
+        _ => None,
+    }
+}
 
 #[derive(Clone)]
 pub struct CommandContext

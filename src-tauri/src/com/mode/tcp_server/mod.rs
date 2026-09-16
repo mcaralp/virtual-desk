@@ -6,7 +6,6 @@ use crate::com::{Error, CommandResponse, Emitter, TauriEmitter, WindowGuard};
 use crate::config::{ConfigReceiver, Mode, TcpServerConfig};
 use crate::command::CommandReceiver;
 
-#[derive(Clone)]
 pub struct TcpServerCom
 {
     emitter: Emitter,
@@ -14,23 +13,21 @@ pub struct TcpServerCom
     command_receiver: CommandReceiver,
     config: TcpServerConfig,
     buffer: BytesMut,
+    app: tauri::AppHandle,
 }
 
 impl TcpServerCom
 {
-    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, config: TcpServerConfig) -> Self
+    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, config: TcpServerConfig, app: tauri::AppHandle) -> Self
     {
-        let emitter = Emitter::Tauri(TauriEmitter::new(command_receiver.app()));
-        Self { emitter, config_receiver, command_receiver, config, buffer: BytesMut::with_capacity(4096) }
+        let emitter = Emitter::Tauri(TauriEmitter::new(app.clone()));
+        Self { emitter, config_receiver, command_receiver, config, buffer: BytesMut::with_capacity(4096), app }
     }
 
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        self.command_receiver.register_state(self.clone());
-
-        let _window = WindowGuard::new(self.command_receiver.app())?;
-
+        let _window = WindowGuard::new(self.app.clone())?;
         let listener = TcpListener::bind(("0.0.0.0", self.config.port)).await?;
 
         loop

@@ -17,12 +17,7 @@ pub fn get_config_path() -> String
 fn setup(app: &mut tauri::App)
     -> Result<(), Box<dyn std::error::Error>>
 {
-    let config_watcher = config::ConfigWatcher::new(&get_config_path());
-    config_watcher.start()?;
-    let command_state = command::CommandState::new(app.handle().clone());
-    command_state.start();
-
-    com::setup(config_watcher, command_state)?;
+    com::setup(get_config_path(), app.handle().clone())?;
     Ok(())
 }
 

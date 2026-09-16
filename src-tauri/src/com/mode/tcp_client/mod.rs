@@ -1,9 +1,8 @@
-use crate::config::{ConfigReceiver, AppConfig, Mode, TcpClientConfig};
+use crate::config::{ConfigReceiver, Mode, TcpClientConfig};
 use crate::com::{CommandRequest, Error, Emitter, MpscEmitter};
 use crate::command::CommandReceiver;
 use crate::com::commands::CommandDispatch;
 
-#[derive(Clone)]
 pub struct TcpClientCom
 {
     dispatch: CommandDispatch,
@@ -25,10 +24,10 @@ impl TcpClientCom
     pub fn send_command(&self, command: CommandRequest)
         -> Result<(), Error>
     {
-        let com = self.clone();
+        let dispatch = self.dispatch.clone();
         tauri::async_runtime::spawn(async move
         {
-            if let Err(e) = com.dispatch.send_command(command).await
+            if let Err(e) = dispatch.send_command(command).await
             {
                 eprintln!("Failed to send tcp client command: {e}");
             }
@@ -39,8 +38,6 @@ impl TcpClientCom
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        self.command_receiver.register_state(self.clone());
-
         loop
         {
             let result: Result<(), Error> = tokio::select!
@@ -48,10 +45,13 @@ impl TcpClientCom
                 res = self.config_receiver.recv() =>
                 {
                     res?;
-                    let config: AppConfig = self.config_receiver.read_config()?;
-                    if !matches!(config.mode, Mode::TcpClient(_))
+                    let config = self.config_receiver.read_config();
+                    if let Ok(config) = config
                     {
-                        return Err(Error::Other("Configuration changed to non-tcp-client mode".to_string()));
+                        if !matches!(config.mode, Mode::TcpClient(_))
+                        {
+                            return Err(Error::Other("Configuration changed to non-tcp-client mode".to_string()));
+                        }
                     }
                     Ok(())
                 }
