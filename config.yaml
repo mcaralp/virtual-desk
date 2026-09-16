@@ -2,9 +2,10 @@ version: 1
 mode: local
 settings:
     window:
-        screen: 1
+        screen: 0
         width: 100%
         height: 300
+        rotation: 0
         position:
             x: 0
             y: 100%
@@ -13,7 +14,7 @@ settings:
             y: 100%
         transparent: false
         decorations: false
-        pinned: true
+        pinned: false
     pages:
         - id: main
           grid:

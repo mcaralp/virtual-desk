@@ -2,8 +2,9 @@ import { type AppConfig } from './Config'
 
 export enum CommandType {
     ShellCommand = 1,
-    ConfigCommand = 2,
-    CancelCommand = 3
+    ReadConfigCommand = 2,
+    WatchConfigCommand = 3,
+    CancelCommand = 4
 }
 
 interface ShellCommandParams
@@ -24,13 +25,15 @@ interface CancelCommandParams
 
 export type CommandParamsMapping = {
     [CommandType.ShellCommand]: ShellCommandParams
-    [CommandType.ConfigCommand]: null
+    [CommandType.ReadConfigCommand]: null
+    [CommandType.WatchConfigCommand]: null
     [CommandType.CancelCommand]: CancelCommandParams
 }
 
 export type CommandResponseMapping = {
     [CommandType.ShellCommand]: ShellCommandResponse | null
-    [CommandType.ConfigCommand]: AppConfig
+    [CommandType.ReadConfigCommand]: AppConfig
+    [CommandType.WatchConfigCommand]: AppConfig
     [CommandType.CancelCommand]: null
 }
 

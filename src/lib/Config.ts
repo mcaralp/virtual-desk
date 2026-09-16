@@ -40,6 +40,7 @@ export interface WindowConfig
     height: string
     position: PositionConfig
     origin: PositionConfig
+    rotation: number
     transparent: boolean
     decorations: boolean
     pinned: boolean
@@ -52,13 +53,27 @@ export interface LocalConfig
     widgets: WidgetConfig[]
 }
 
-export interface RemoteConfig
+export interface Host
 {
-    host: string
+    address: string
     port: number
+}
+
+export interface TcpServerConfig
+{
+    host: Host
+    window: WindowConfig
+    pages: PageConfig[]
+    widgets: WidgetConfig[]
+}
+
+export interface TcpClientConfig
+{
+    host: Host
 }
 
 export type AppConfig = { version: number } & (
     | { mode: 'local', settings: LocalConfig }
-    | { mode: 'remote', settings: RemoteConfig }
+    | { mode: 'tcpserver', settings: TcpServerConfig }
+    | { mode: 'tcpclient', settings: TcpClientConfig }
 )

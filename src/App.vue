@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted, computed, watch } from "vue"
 import { availableMonitors, getCurrentWindow, LogicalSize, LogicalPosition } from '@tauri-apps/api/window'
 import { type AppConfig } from './lib/Config.ts'
 import { Command } from './lib/Command'
@@ -18,14 +18,30 @@ function parseValue(value: string, reference: number): number
     return num
 }
 
-const config = ref<AppConfig | null>(null)
-
-async function updateConfig(newConfig: AppConfig)
+// Rotates a point (x, y) taken from a `width` x `height` rect by `rotation` degrees (clockwise)
+function rotatePoint(x: number, y: number, width: number, height: number, rotation: number): { x: number, y: number }
 {
-    console.log(newConfig)
-    config.value = newConfig
+    switch (rotation)
+    {
+        case 90:  return { x: y, y: width - x }
+        case 180: return { x: width - x, y: height - y }
+        case 270: return { x: height - y, y: x }
+        default:  return { x, y }
+    }
+}
 
-    if (newConfig.mode !== 'local') return
+const config = ref<AppConfig | null>(null)
+const rotation = computed(() => {
+    if (config.value?.mode !== 'local') return 0
+    return ((config.value.settings.window.rotation % 360) + 360) % 360  
+})
+
+watch(config, async (newConfig: AppConfig | null) => {
+    if (newConfig === null) return 
+  
+    console.log(newConfig)
+
+    if (newConfig.mode !== 'local' && newConfig.mode !== 'tcpserver') return
 
     const monitors = await availableMonitors()
 
@@ -37,19 +53,39 @@ async function updateConfig(newConfig: AppConfig)
     const monitor = monitors[windowConfig.screen]
     if (!monitor) throw new Error("No monitor available")
 
+    const rotation = ((windowConfig.rotation % 360) + 360) % 360
+    const swapped = rotation === 90 || rotation === 270
+
     const monitorW = monitor.size.width / monitor.scaleFactor
     const monitorH = monitor.size.height / monitor.scaleFactor
     const monitorX = monitor.position.x / monitor.scaleFactor
     const monitorY = monitor.position.y / monitor.scaleFactor
 
-    const width  = parseValue(windowConfig.width,  monitorW)
-    const height = parseValue(windowConfig.height, monitorH)
+    // Monitor and window dimensions as seen in the configured (visual) orientation
+    const visualMonitorW = swapped ? monitorH : monitorW
+    const visualMonitorH = swapped ? monitorW : monitorH
+    const visualWidth = parseValue(windowConfig.width, visualMonitorW)
+    const visualHeight = parseValue(windowConfig.height, visualMonitorH)
 
-    const originX = parseValue(windowConfig.origin.x, width)
-    const originY = parseValue(windowConfig.origin.y, height)
+    // Real window size to apply, axes swap for 90/270
+    const width  = swapped ? visualHeight : visualWidth
+    const height = swapped ? visualWidth  : visualHeight
 
-    const posX = monitorX + parseValue(windowConfig.position.x, monitorW) - originX
-    const posY = monitorY + parseValue(windowConfig.position.y, monitorH) - originY
+    // Origin is a point within the window rect, position a point within the monitor rect;
+    // both are configured in the visual orientation and need to be rotated back into real coordinates
+    const { x: originX, y: originY } = rotatePoint(
+        parseValue(windowConfig.origin.x, visualWidth),
+        parseValue(windowConfig.origin.y, visualHeight),
+        visualWidth, visualHeight, rotation
+    )
+    const { x: positionX, y: positionY } = rotatePoint(
+        parseValue(windowConfig.position.x, visualMonitorW),
+        parseValue(windowConfig.position.y, visualMonitorH),
+        visualMonitorW, visualMonitorH, rotation
+    )
+
+    const posX = monitorX + positionX - originX
+    const posY = monitorY + positionY - originY
 
     const win = getCurrentWindow()
     await win.setDecorations(windowConfig.decorations)
@@ -69,38 +105,49 @@ async function updateConfig(newConfig: AppConfig)
 
     await win.setAlwaysOnTop(windowConfig.pinned)
     await win.show()
-}
+});
 
 const mainStyle = computed(() => {
     const settings = config.value?.mode === 'local' ? config.value.settings : null
     const transparent = settings?.window.transparent ?? false
     const color = `rgba(247, 248, 250, ${transparent ? 0 : 1})`
     const opacity = transparent ? 0.8 : 1
+    const clockwise = 360 - rotation.value
     return {
         background: color,
         opacity: opacity,
+        width: clockwise % 180 === 0 ? '100vw' : '100vh',
+        height: clockwise % 180 === 0 ? '100vh' : '100vw',
+        transform: `rotate(${clockwise}deg)`
     }
 })
 
 onMounted(async () => {
 
+    try
+    {
+        const configRequest = await Command.init(CommandType.ReadConfigCommand, null)
+        config.value = await configRequest.read();
+    }
+    catch (e)
+    {
+        console.error(e)
+    }
+
     while(true)
     {
-    const configRequest = await Command.init(CommandType.ConfigCommand, null)
-
         try
         {
-            while(!configRequest.isFinished())
+            const watchConfigRequest = await Command.init(CommandType.WatchConfigCommand, null)
+            while(!watchConfigRequest.isFinished())
             {
-                const newConfig = await configRequest.read();
-                updateConfig(newConfig);
+                config.value = await watchConfigRequest.read();
             }
         }
-        catch (e) {
+        catch (e)
+        {
             console.error(e)
         }
-
-        await new Promise(resolve => setTimeout(resolve, 1000))
     }
 })
 
@@ -120,9 +167,6 @@ onMounted(async () => {
     line-height: 24px;
     font-weight: 400;
     color: #0f0f0f;
-    width: 100vh;
-    height: 100vw;
-    transform: rotate(90deg);
 }
 </style>
 
@@ -139,7 +183,7 @@ html, body
     margin: 0;
     width: 100%;
     height: 100%;
-    display: flex;
+    display: grid;
     justify-content: center;
     align-items: center;
 }
