@@ -31,9 +31,34 @@ function rotatePoint(x: number, y: number, width: number, height: number, rotati
 }
 
 const config = ref<AppConfig | null>(null)
+
+const windowConfig = computed(() => {
+    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
+    {
+        return config.value.settings.window
+    }
+    return null
+})
+
+const pagesConfig = computed(() => {
+    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
+    {
+        return config.value.settings.pages
+    }
+    return []
+})
+
+const widgetsConfig = computed(() => {
+    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
+    {
+        return config.value.settings.widgets
+    }
+    return []
+})
+
 const rotation = computed(() => {
-    if (config.value?.mode !== 'local') return 0
-    return ((config.value.settings.window.rotation % 360) + 360) % 360  
+    if (!windowConfig.value) return 0
+    return ((windowConfig.value.rotation % 360) + 360) % 360  
 })
 
 watch(config, async (newConfig: AppConfig | null) => {
@@ -41,7 +66,7 @@ watch(config, async (newConfig: AppConfig | null) => {
   
     console.log(newConfig)
 
-    if (newConfig.mode !== 'local' && newConfig.mode !== 'tcpserver') return
+    if (newConfig.mode !== 'local' && newConfig.mode !== 'tcpclient') return
 
     const monitors = await availableMonitors()
 
@@ -155,7 +180,7 @@ onMounted(async () => {
 
 <template>
     <main class="container" :style="mainStyle">
-        <Grid v-if="config?.mode === 'local'" :config="config.settings.pages[0]" :widgets="config.settings.widgets" />
+        <Grid v-if="pagesConfig.length > 0" :config="pagesConfig[0]" :widgets="widgetsConfig" />
     </main>
 </template>
 

@@ -15,10 +15,10 @@ const cellStyle = (cell: CellConfig): Record<string, string> => ({
     gridRow: `${cell.y + 1} / span ${cell.height}`,
 });
 
-function getWidget(id: string)
-{
-    return props.widgets.find(widget => widget.id === id);
-}
+// function getWidget(id: string)
+// {
+//     return props.widgets.find(widget => widget.id === id);
+// }
 </script>
 
 <template>

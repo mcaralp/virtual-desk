@@ -49,13 +49,14 @@ pub struct TcpServerConfig
 {
     #[serde(default)]
     pub host: Host,
-    pub window: WindowConfig,
-    pub pages: Vec<PageConfig>,
-    pub widgets: Vec<WidgetConfig>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TcpClientConfig
 {
-    pub host: Host
+    #[serde(default)]
+    pub host: Host,
+    pub window: WindowConfig,
+    pub pages: Vec<PageConfig>,
+    pub widgets: Vec<WidgetConfig>
 }

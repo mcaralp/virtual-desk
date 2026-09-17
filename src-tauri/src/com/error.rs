@@ -17,8 +17,6 @@ pub enum Error
     BroadcastSendError(#[from] broadcast::error::SendError<CommandRequest>),
     #[error("Broadcast recv error: {0}")]
     BroadcastRecvError(#[from] broadcast::error::RecvError),
-    #[error("Postcard error: {0}")]
-    PostcardError(#[from] postcard::Error),
     #[error("Try from int error: {0}")]
     TryFromIntError(#[from] std::num::TryFromIntError),
     #[error("Tauri error: {0}")]

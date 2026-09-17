@@ -62,14 +62,14 @@ export interface Host
 export interface TcpServerConfig
 {
     host: Host
-    window: WindowConfig
-    pages: PageConfig[]
-    widgets: WidgetConfig[]
 }
 
 export interface TcpClientConfig
 {
     host: Host
+    window: WindowConfig
+    pages: PageConfig[]
+    widgets: WidgetConfig[]
 }
 
 export type AppConfig = { version: number } & (

@@ -1,5 +1,6 @@
-use postcard::from_bytes;
+use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use crate::config::{ConfigReceiver, Mode, TcpClientConfig};
 use crate::com::{CommandRequest, CommandResponse, Error, Emitter, MpscEmitter};
@@ -61,15 +62,14 @@ impl TcpClientCom
         }
     }
 
-    async fn handle_connection(&mut self, socket: TcpStream)
+    async fn handle_connection(&mut self, mut socket: TcpStream)
         -> Result<(), Error>
     {
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = socket.readable() => {
-                    result?;
-                    match socket.try_read_buf(&mut self.buffer) {
+                result = socket.read_buf(&mut self.buffer) => {
+                    match result {
                         Ok(0) => break,
                         Ok(_) => {
                             self.handle_incoming_data().await?;
@@ -104,7 +104,7 @@ impl TcpClientCom
             match cmd
             {
                 0 => {
-                    let command = from_bytes::<CommandRequest>(&payload)?;
+                    let command = from_slice::<CommandRequest>(&payload)?;
                     self.send_command(command)?;
                 }
                 _ => {}

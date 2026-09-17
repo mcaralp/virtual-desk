@@ -1,5 +1,5 @@
 use serde::Serialize;
-use postcard::to_allocvec;
+use serde_json::to_vec;
 use tokio_util::bytes::BytesMut;
 use crate::com::Error;
 
@@ -8,7 +8,7 @@ const HEADER_SIZE: usize = 8;
 pub fn encode<T: Serialize>(cmd: u32, value: &T)
     -> Result<Vec<u8>, Error>
 {
-    let payload = to_allocvec(value)?;
+    let payload = to_vec(value)?;
     let size = u32::try_from(payload.len())?;
     let mut frame = Vec::with_capacity(4 + 4 + payload.len());
 
