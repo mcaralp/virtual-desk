@@ -33,7 +33,6 @@ impl TcpClientCom
         -> Result<(), Error>
     {
         let res = self.handle_connection().await;
-        self.dispatch.cancel_all().await;
         res
     }
 
@@ -60,6 +59,11 @@ impl TcpClientCom
                     self.check_config()
                 }
             };
+
+            self.dispatch.cancel_all().await;
+            // Clear any pending responses from the response receiver
+            //to avoid processing stale responses after a reconnect.
+            while self.response_receiver.try_recv().is_ok() {}
 
             // Only a config change tears the mode down; any other error just triggers a reconnect.
             match result

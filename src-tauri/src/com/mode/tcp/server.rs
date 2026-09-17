@@ -15,6 +15,7 @@ pub struct TcpServerCom
     config: TcpServerConfig,
     buffer: BytesMut,
     app: tauri::AppHandle,
+    requests_in_progress: Vec<String>,
 }
 
 impl TcpServerCom
@@ -22,7 +23,7 @@ impl TcpServerCom
     pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, config: TcpServerConfig, app: tauri::AppHandle) -> Self
     {
         let emitter = Emitter::Tauri(TauriEmitter::new(app.clone()));
-        Self { emitter, config_receiver, command_receiver, config, buffer: BytesMut::with_capacity(4096), app }
+        Self { emitter, config_receiver, command_receiver, config, buffer: BytesMut::with_capacity(4096), app, requests_in_progress: Vec::new() }
     }
 
     pub async fn run(&mut self)
@@ -64,6 +65,12 @@ impl TcpServerCom
                 }
             };
 
+            for uuid in &self.requests_in_progress
+            {
+                let _ = self.emitter.emit_error(uuid, "Connection closed").await;
+            }
+            self.requests_in_progress.clear();
+
             // Only a config change tears the mode down; any other error just waits for a new connection.
             match result
             {
@@ -92,6 +99,7 @@ impl TcpServerCom
                 }
                 res = self.command_receiver.recv() => {
                     let command = res?;
+                    self.requests_in_progress.push(command.uuid.clone());
                     let data = encode(0, &command)?;
                     socket.write_all(&data).await?;
                     Ok(())
@@ -117,8 +125,17 @@ impl TcpServerCom
                 0 => {
                     let res = from_slice::<CommandResponse>(&payload)?;
                     match res.result {
-                        Ok(data) => self.emitter.emit(&res.uuid, data.last, &data.data).await?,
-                        Err(err) => self.emitter.emit_error(&res.uuid, &err).await?,
+                        Ok(data) => {
+                            if data.last
+                            {
+                                self.requests_in_progress.retain(|uuid| uuid != &res.uuid);
+                            }
+                            self.emitter.emit(&res.uuid, data.last, &data.data).await?
+                        }
+                        Err(err) => {
+                            self.requests_in_progress.retain(|uuid| uuid != &res.uuid);
+                            self.emitter.emit_error(&res.uuid, &err).await?
+                        }
                     }
                 }
                 _ => eprintln!("Ignoring frame with unknown command id: {cmd}"),
