@@ -11,14 +11,14 @@ impl TauriEmitter
 {
     pub fn new(app: tauri::AppHandle) -> Self
     {
-        TauriEmitter { app: app }
+        TauriEmitter { app }
     }
 
-    pub async fn emit(&self, id: &String, last: bool, data: &serde_json::Value)
+    pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
         -> Result<(), Error>
     {
         let response = CommandResponse {
-            uuid: id.clone(),
+            uuid: id.to_string(),
             result: Ok(CommandResponseData {
                 last: last,
                 data: data.clone()
@@ -28,12 +28,12 @@ impl TauriEmitter
         Ok(())
     }
 
-    pub async fn emit_error(&self, id: &String, error: &String)
+    pub async fn emit_error(&self, id: &str, error: &str)
         -> Result<(), Error>
     {
         let response = CommandResponse {
-            uuid: id.clone(),
-            result: Err(error.clone())
+            uuid: id.to_string(),
+            result: Err(error.to_string())
         };
         self.app.emit("command-response", response)?;
         Ok(())

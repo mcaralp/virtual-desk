@@ -4,6 +4,7 @@ use tokio_util::bytes::BytesMut;
 use crate::com::Error;
 
 const HEADER_SIZE: usize = 8;
+const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
 
 pub fn encode<T: Serialize>(cmd: u32, value: &T)
     -> Result<Vec<u8>, Error>
@@ -21,22 +22,27 @@ pub fn encode<T: Serialize>(cmd: u32, value: &T)
 
 /// Pulls the next complete framed message out of `buffer`, if any, returning its command id and payload.
 pub fn decode_frame(buffer: &mut BytesMut)
-    -> Option<(u32, BytesMut)>
+    -> Result<Option<(u32, BytesMut)>, Error>
 {
     if buffer.len() < HEADER_SIZE
     {
-        return None;
+        return Ok(None);
     }
 
     let cmd = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
     let len = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]) as usize;
 
+    if len > MAX_FRAME_SIZE
+    {
+        return Err(Error::Other(format!("Frame too large: {len} bytes (max {MAX_FRAME_SIZE})")));
+    }
+
     if buffer.len() < HEADER_SIZE + len
     {
-        return None;
+        return Ok(None);
     }
 
     let mut frame = buffer.split_to(HEADER_SIZE + len);
     let payload = frame.split_off(HEADER_SIZE);
-    Some((cmd, payload))
+    Ok(Some((cmd, payload)))
 }

@@ -1,7 +1,7 @@
 use crate::com::Error;
 use crate::com::commands::{CommandContext};
 
-pub async fn cmd_config(com: &CommandContext, id: &String)
+pub async fn cmd_config(com: &CommandContext, id: &str)
     -> Result<(), Error>
 {
     let config = com.read_config().await?;

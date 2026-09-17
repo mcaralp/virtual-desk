@@ -1,11 +1,14 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::time::{sleep, Duration};
 use crate::config::{ConfigReceiver, Mode, TcpClientConfig};
 use crate::com::{CommandRequest, CommandResponse, Error, Emitter, MpscEmitter};
 use crate::com::commands::CommandDispatch;
 use super::util::{encode, decode_frame};
+
+const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
 pub struct TcpClientCom
 {
@@ -43,26 +46,48 @@ impl TcpClientCom
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
+        let res = self.handle_connection().await;
+        self.dispatch.cancel_all();
+        res
+    }
+
+    async fn handle_connection(&mut self)
+        -> Result<(), Error>
+    {
         loop
         {
             let result: Result<(), Error> = tokio::select! {
                 result = TcpStream::connect((self.config.host.address.as_str(), self.config.host.port)) => {
-                    let socket = result?;
-                    println!("Connected to {}:{}", self.config.host.address, self.config.host.port);
-                    self.buffer.clear();
-                    self.handle_connection(socket).await?;
-                    Ok(())
+                    match result {
+                        Ok(socket) => {
+                            println!("Connected to {}:{}", self.config.host.address, self.config.host.port);
+                            self.buffer.clear();
+                            self.handle_socket(socket).await
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to connect to {}:{}: {e}", self.config.host.address, self.config.host.port);
+                            Ok(())
+                        }
+                    }
                 }
                 _ = self.config_receiver.recv() => {
-                    self.check_config()?;
-                    Ok(())
+                    self.check_config()
                 }
             };
-            result?;
+
+            // Only a config change tears the mode down; any other error just triggers a reconnect.
+            match result
+            {
+                Ok(()) => {}
+                Err(Error::ConfigChanged) => return Err(Error::ConfigChanged),
+                Err(e) => eprintln!("Connection error, reconnecting: {e}"),
+            }
+
+            sleep(RECONNECT_DELAY).await;
         }
     }
 
-    async fn handle_connection(&mut self, mut socket: TcpStream)
+    async fn handle_socket(&mut self, mut socket: TcpStream)
         -> Result<(), Error>
     {
         loop
@@ -82,7 +107,7 @@ impl TcpClientCom
                     if let Some(response) = res
                     {
                         let data = encode(0, &response)?;
-                        socket.try_write(&data)?;
+                        socket.write_all(&data).await?;
                     }
                     Ok(())
                 }
@@ -99,15 +124,16 @@ impl TcpClientCom
     async fn handle_incoming_data(&mut self)
         -> Result<(), Error>
     {
-        while let Some((cmd, payload)) = decode_frame(&mut self.buffer)
+        loop
         {
+            let Some((cmd, payload)) = decode_frame(&mut self.buffer)? else { break };
             match cmd
             {
                 0 => {
                     let command = from_slice::<CommandRequest>(&payload)?;
                     self.send_command(command)?;
                 }
-                _ => {}
+                _ => eprintln!("Ignoring frame with unknown command id: {cmd}"),
             }
         }
         Ok(())
@@ -122,12 +148,12 @@ impl TcpClientCom
             {
                 if self.config.host != remote_config.host
                 {
-                    return Err(Error::Other("Configuration changed".to_string()));
+                    return Err(Error::ConfigChanged);
                 }
             }
             else
             {
-                return Err(Error::Other("Configuration changed to non-tcp-client mode".to_string()));
+                return Err(Error::ConfigChanged);
             }
         }
         Ok(())

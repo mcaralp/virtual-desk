@@ -23,6 +23,8 @@ pub enum Error
     TauriError(#[from] tauri::Error),
     #[error("Operation cancelled")]
     Cancelled,
+    #[error("Configuration changed")]
+    ConfigChanged,
     #[error("{0}")]
     Other(String),
 }

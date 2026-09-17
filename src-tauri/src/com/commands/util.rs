@@ -3,7 +3,7 @@ use std::future::Future;
 use crate::com::Error;
 use crate::com::commands::CommandContext;
 
-pub async fn cancellable<F>(com: &CommandContext, id: &String, future: F)
+pub async fn cancellable<F>(com: &CommandContext, id: &str, future: F)
     -> Result<F::Output, Error>
 where
     F: Future,

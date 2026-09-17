@@ -18,7 +18,7 @@ struct ShellCommandResponse
     pub data: String,
 }
 
-pub async fn cmd_shell(com: &CommandContext, id: &String, params: &serde_json::Value)
+pub async fn cmd_shell(com: &CommandContext, id: &str, params: &serde_json::Value)
     -> Result<(), Error>
 {
     let params: ShellCommandParams = serde_json::from_value(params.clone())?;

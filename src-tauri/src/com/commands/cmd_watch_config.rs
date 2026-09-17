@@ -1,7 +1,7 @@
 use crate::com::Error;
 use crate::com::commands::{CommandContext, util};
 
-pub async fn cmd_config(com: &CommandContext, id: &String)
+pub async fn cmd_config(com: &CommandContext, id: &str)
     -> Result<(), Error>
 {
     loop

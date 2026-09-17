@@ -8,7 +8,7 @@ struct CancelCommandParams
     pub uuid: String,
 }
 
-pub async fn cmd_cancel(com: &CommandContext, id: &String, params: &serde_json::Value)
+pub async fn cmd_cancel(com: &CommandContext, id: &str, params: &serde_json::Value)
     -> Result<(), Error>
 {
     let cancel_params: CancelCommandParams = serde_json::from_value(params.clone())?;

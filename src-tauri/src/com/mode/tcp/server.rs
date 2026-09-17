@@ -1,6 +1,6 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use crate::com::{Error, CommandResponse, Emitter, TauriEmitter, WindowGuard};
 use crate::config::{ConfigReceiver, Mode, TcpServerConfig};
@@ -28,30 +28,49 @@ impl TcpServerCom
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        let _window = WindowGuard::new(self.app.clone())?;
-        let listener = TcpListener::bind((self.config.host.address.as_str(), self.config.host.port)).await?;
+        let window = WindowGuard::new(self.app.clone())?;
+        let res = self.accept_connections().await;
+        window.stop().await?;
 
+        res
+    }
+
+    async fn accept_connections(&mut self)
+        -> Result<(), Error>
+    {
+        let listener = TcpListener::bind((self.config.host.address.as_str(), self.config.host.port)).await?;
         loop
         {
             let result: Result<(), Error> = tokio::select! {
                 result = listener.accept() => {
-                    let (socket, addr) = result?;
-                    println!("Accepted connection from {}", addr);
-                    self.buffer.clear();
-                    self.handle_connection(socket).await?;
-                    Ok(())
+                    match result {
+                        Ok((socket, addr)) => {
+                            println!("Accepted connection from {}", addr);
+                            self.buffer.clear();
+                            self.handle_connection(socket).await
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to accept connection: {e}");
+                            Ok(())
+                        }
+                    }
                 }
                 res = self.command_receiver.recv() => {
                     let command = res?;
-                    self.emitter.emit_error(&command.uuid, &"Server not connected".to_string()).await?;
-                    Ok(())
+                    self.emitter.emit_error(&command.uuid, "Server not connected").await
                 }
                 _ = self.config_receiver.recv() => {
-                    self.check_config()?;
-                    Ok(())
+                    self.check_config()
                 }
             };
-            result?;
+
+            // Only a config change tears the mode down; any other error just waits for a new connection.
+            match result
+            {
+                Ok(()) => {}
+                Err(Error::ConfigChanged) => return Err(Error::ConfigChanged),
+                Err(e) => eprintln!("Connection error, awaiting new connection: {e}"),
+            }
         }
     }
 
@@ -74,7 +93,7 @@ impl TcpServerCom
                 res = self.command_receiver.recv() => {
                     let command = res?;
                     let data = encode(0, &command)?;
-                    socket.try_write(&data)?;
+                    socket.write_all(&data).await?;
                     Ok(())
                 }
                 _ = self.config_receiver.recv() => {
@@ -90,8 +109,9 @@ impl TcpServerCom
     async fn handle_incoming_data(&mut self)
         -> Result<(), Error>
     {
-        while let Some((cmd, payload)) = decode_frame(&mut self.buffer)
+        loop
         {
+            let Some((cmd, payload)) = decode_frame(&mut self.buffer)? else { break };
             match cmd
             {
                 0 => {
@@ -101,7 +121,7 @@ impl TcpServerCom
                         Err(err) => self.emitter.emit_error(&res.uuid, &err).await?,
                     }
                 }
-                _ => {}
+                _ => eprintln!("Ignoring frame with unknown command id: {cmd}"),
             }
         }
         Ok(())
@@ -116,12 +136,12 @@ impl TcpServerCom
             {
                 if self.config.host != remote_config.host
                 {
-                    return Err(Error::Other("Configuration changed".to_string()));
+                    return Err(Error::ConfigChanged);
                 }
             }
             else
             {
-                return Err(Error::Other("Configuration changed to non-remote mode".to_string()));
+                return Err(Error::ConfigChanged);
             }
         }
         Ok(())

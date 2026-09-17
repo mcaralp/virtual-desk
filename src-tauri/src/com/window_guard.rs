@@ -1,6 +1,10 @@
 /// RAII guard that keeps the hidden main window alive and closes it on drop.
-pub struct WindowGuard {
+use tokio::sync::watch;
+
+pub struct WindowGuard
+{
     window: tauri::WebviewWindow,
+    closed: watch::Receiver<bool>,
 }
 
 impl WindowGuard
@@ -15,12 +19,36 @@ impl WindowGuard
             .visible(false)
             .build()?;
 
-        Ok(Self { window })
-    }
-}
+        let (closed_tx, closed_rx) = watch::channel(false);
 
-impl Drop for WindowGuard {
-    fn drop(&mut self) {
-        let _ = self.window.close();
+        let closed_for_event = closed_tx.clone();
+
+        window.on_window_event(move |event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                let _ = closed_for_event.send(true);
+            }
+        });
+
+        Ok(Self { window, closed: closed_rx })
+    }
+
+    pub async fn stop(&self) -> tauri::Result<()>
+    {
+        if !*self.closed.borrow()
+        {
+            self.window.close()?;
+        }
+
+        let mut closed = self.closed.clone();
+
+        while !*closed.borrow()
+        {
+            if closed.changed().await.is_err()
+            {
+                break;
+            }
+        }
+
+        Ok(())
     }
 }

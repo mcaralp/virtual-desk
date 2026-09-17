@@ -4,6 +4,7 @@ mod error;
 mod emitter;
 mod window_guard;
 
+use tokio::time::{sleep, Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::config::{ConfigReceiver, ConfigWatcher, Mode, AppConfig};
@@ -84,17 +85,20 @@ pub fn setup(config_path: String, app: tauri::AppHandle)
                 Ok(config) => 
                 {
                     let err = run(config_watcher.subscribe(), command_state.subscribe(), app.clone(), config ).await;
-                    if let Err(e) = err
+                    match err
                     {
-                        eprintln!("Error running com: {:?}", e);
+                        Ok(()) => {},
+                        Err(Error::ConfigChanged) => println!("Configuration changed, restarting com"),
+                        Err(e) => eprintln!("Error running com: {:?}", e),
                     }
                 },
                 Err(e) =>
                 {
-                    eprintln!("Error reading config: {:?}", e);
-                    return;
-                },
+                    eprintln!("Error reading config, retrying: {:?}", e);
+                }
             }
+
+            sleep(Duration::from_secs(1)).await;
         }
     });
     Ok(())

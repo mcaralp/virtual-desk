@@ -3,7 +3,30 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use crate::com::{CommandRequest, Error};
 
-pub type CommandReceiver = broadcast::Receiver<CommandRequest>;
+pub struct CommandReceiver
+{
+    rx: broadcast::Receiver<CommandRequest>,
+}
+
+impl CommandReceiver
+{
+    /// Receives the next command, skipping (and logging) dropped messages instead of failing.
+    pub async fn recv(&mut self) -> Result<CommandRequest, Error>
+    {
+        loop
+        {
+            match self.rx.recv().await
+            {
+                Ok(command) => return Ok(command),
+                Err(broadcast::error::RecvError::Lagged(n)) =>
+                {
+                    eprintln!("Command receiver lagged, skipped {n} messages");
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct CommandState
@@ -27,9 +50,9 @@ impl CommandState
         Ok(res)
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<CommandRequest>
+    pub fn subscribe(&self) -> CommandReceiver
     {
-        self.sender.subscribe()
+        CommandReceiver { rx: self.sender.subscribe() }
     }
 
     pub fn start(&self)

@@ -2,22 +2,22 @@ version: 1
 mode: tcpclient
 settings:
     host:
-      address: "127.0.0.1"
+      address: "192.168.0.19"
       port: 8080
     window:
         screen: 0
         width: 100%
         height: 300
-        rotation: 0
+        rotation: 270
         position:
             x: 0
             y: 100%
         origin:
-            x: "0"
+            x: 0
             y: 100%
         transparent: false
-        decorations: false
-        pinned: true
+        decorations: true
+        pinned: false
     pages:
         - id: main
           grid:

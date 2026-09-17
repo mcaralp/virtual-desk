@@ -33,11 +33,10 @@ impl LocalCom
         });
         Ok(())
     }
-    
-    pub async fn run(&mut self)
+
+    async fn monitor(&mut self)
         -> Result<(), Error>
-    {
-        let _window = WindowGuard::new(self.app.clone())?;
+    { 
         loop
         {
             let result: Result<(), Error> = tokio::select!
@@ -50,7 +49,7 @@ impl LocalCom
                     {
                         if !matches!(config.mode, Mode::Local(_))
                         {
-                            return Err(Error::Other("Configuration changed to non-local mode".to_string()));
+                            return Err(Error::ConfigChanged);
                         }
                     }
                     Ok(())
@@ -63,5 +62,15 @@ impl LocalCom
             };
             result?;
         }
+    }
+    
+    pub async fn run(&mut self)
+        -> Result<(), Error>
+    {
+        let window = WindowGuard::new(self.app.clone())?;
+        let res = self.monitor().await;
+        self.dispatch.cancel_all();
+        window.stop().await?;
+        res
     }
 }

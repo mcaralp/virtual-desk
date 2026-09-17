@@ -50,31 +50,29 @@ impl CommandContext
         }
     }
 
-    pub fn get_token(&self, uuid: &String) -> Option<CancellationToken>
+    pub fn get_token(&self, uuid: &str) -> Option<CancellationToken>
     {
         self.cancel_tokens.lock().unwrap().get(uuid).cloned()
     }
 
-    pub fn insert_token(&self, uuid: &String)
-        -> ()
+    pub fn insert_token(&self, uuid: &str)
     {
-        self.cancel_tokens.lock().unwrap().insert(uuid.clone(), CancellationToken::new());
+        self.cancel_tokens.lock().unwrap().insert(uuid.to_string(), CancellationToken::new());
     }
 
-    pub fn remove_token(&self, uuid: &String)
-        -> ()
+    pub fn remove_token(&self, uuid: &str)
     {
         self.cancel_tokens.lock().unwrap().remove(uuid);
     }
 
-    pub async fn emit(&self, id: &String, last: bool, data: &serde_json::Value)
+    pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
         -> Result<(), Error>
     {
         self.emitter.emit(id, last, data).await?;
         Ok(())
     }
 
-    pub async fn emit_error(&self, id: &String, error: &String)
+    pub async fn emit_error(&self, id: &str, error: &str)
         -> Result<(), Error>
     {
         self.emitter.emit_error(id, error).await?;
@@ -152,5 +150,13 @@ impl CommandDispatch
         }
         self.context.remove_token(&command.uuid);
         Ok(())
+    }
+
+    pub fn cancel_all(&self)
+    {
+        for token in self.context.cancel_tokens.lock().unwrap().values()
+        {
+            token.cancel();
+        }
     }
 }
