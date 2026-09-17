@@ -29,25 +29,11 @@ impl TcpClientCom
         TcpClientCom { dispatch, config_receiver, response_receiver: rx, config, buffer: BytesMut::with_capacity(4096) }
     }
 
-    fn send_command(&self, command: CommandRequest)
-        -> Result<(), Error>
-    {
-        let dispatch = self.dispatch.clone();
-        tauri::async_runtime::spawn(async move
-        {
-            if let Err(e) = dispatch.send_command(command).await
-            {
-                eprintln!("Failed to send tcp client command: {e}");
-            }
-        });
-        Ok(())
-    }
-
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
         let res = self.handle_connection().await;
-        self.dispatch.cancel_all();
+        self.dispatch.cancel_all().await;
         res
     }
 
@@ -131,7 +117,7 @@ impl TcpClientCom
             {
                 0 => {
                     let command = from_slice::<CommandRequest>(&payload)?;
-                    self.send_command(command)?;
+                    self.dispatch.send_command(command);
                 }
                 _ => eprintln!("Ignoring frame with unknown command id: {cmd}"),
             }

@@ -4,7 +4,6 @@ mod cmd_watch_config;
 mod cmd_shell;
 mod util;
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 use crate::config::{ConfigReceiver, AppConfig};
@@ -30,11 +29,31 @@ pub fn convert_command_type(cmd: u32) -> Option<CommandType>
     }
 }
 
+pub struct TaskData
+{
+    uuid: String,
+    cancel_token: CancellationToken,
+    task_handle: tauri::async_runtime::JoinHandle<()>,
+}
+
+impl TaskData
+{
+    pub fn new(uuid: &str, task_handle: tauri::async_runtime::JoinHandle<()>) -> Self
+    {
+        Self
+        {
+            uuid: uuid.to_string(),
+            cancel_token: CancellationToken::new(),
+            task_handle,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CommandContext
 {
     pub emitter: Emitter,
-    pub cancel_tokens: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    pub tasks: Arc<Mutex<Vec<TaskData>>>,
     pub config_receiver: ConfigReceiver,
 }
 
@@ -45,24 +64,40 @@ impl CommandContext
         Self
         {
             emitter,
-            cancel_tokens: Arc::new(Mutex::new(HashMap::new())),
+            tasks: Arc::new(Mutex::new(Vec::new())),
             config_receiver,
         }
     }
 
     pub fn get_token(&self, uuid: &str) -> Option<CancellationToken>
     {
-        self.cancel_tokens.lock().unwrap().get(uuid).cloned()
+        let tasks = self.tasks.lock().unwrap();
+        for task in tasks.iter()
+        {
+            if task.uuid == uuid
+            {
+                return Some(task.cancel_token.clone());
+            }
+        }
+        None
     }
 
-    pub fn insert_token(&self, uuid: &str)
+    pub fn insert_task(&self, uuid: &str, handle: tauri::async_runtime::JoinHandle<()>)
     {
-        self.cancel_tokens.lock().unwrap().insert(uuid.to_string(), CancellationToken::new());
+        self.tasks.lock().unwrap().push(TaskData::new(uuid, handle));
     }
 
-    pub fn remove_token(&self, uuid: &str)
+    pub fn remove_task(&self, uuid: &str)
     {
-        self.cancel_tokens.lock().unwrap().remove(uuid);
+        let mut tasks = self.tasks.lock().unwrap();
+        for pos in 0..tasks.len()
+        {
+            if tasks[pos].uuid == uuid
+            {
+                tasks.remove(pos);
+                return;
+            }
+        }
     }
 
     pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
@@ -97,7 +132,8 @@ impl CommandContext
 #[derive(Clone)]
 pub struct CommandDispatch
 {
-    pub context: CommandContext
+    context: CommandContext
+
 }
 
 impl CommandDispatch
@@ -138,25 +174,36 @@ impl CommandDispatch
         Ok(())
     }
 
-    pub async fn send_command(&self, command: CommandRequest)
-        -> Result<(), Error>
+    pub fn send_command(&self, command: CommandRequest)
     {
-        self.context.insert_token(&command.uuid);
-        let res = self.dispatch(&command).await;
-        if let Err(e) = res
+        let uuid = command.uuid.clone();
+        let dispatch = self.clone();
+        // Cooperative scheduling: the task only runs once this fn yields, so registering after spawn is safe.
+        let handle = tauri::async_runtime::spawn(async move
         {
-            eprintln!("Command {} failed: {e}", command.uuid);
-            let _ = self.context.emit_error(&command.uuid, &e.to_string()).await;
-        }
-        self.context.remove_token(&command.uuid);
-        Ok(())
+            let res = dispatch.dispatch(&command).await;
+            if let Err(e) = res
+            {
+                eprintln!("Command {} failed: {e}", command.uuid);
+                let _ = dispatch.context.emit_error(&command.uuid, &e.to_string()).await;
+            }
+            dispatch.context.remove_task(&command.uuid);
+        });
+
+        self.context.insert_task(&uuid, handle);
     }
 
-    pub fn cancel_all(&self)
+    pub async fn cancel_all(&self)
     {
-        for token in self.context.cancel_tokens.lock().unwrap().values()
+        // Take ownership of the tasks so the lock is released before awaiting the handles.
+        let tasks = std::mem::take(&mut *self.context.tasks.lock().unwrap());
+        for task in &tasks
         {
-            token.cancel();
+            task.cancel_token.cancel();
+        }
+        for task in tasks
+        {
+            let _ = task.task_handle.await;
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::config::{ConfigReceiver, Mode};
-use crate::com::{CommandRequest, Error, Emitter, TauriEmitter, WindowGuard};
+use crate::com::{Error, Emitter, TauriEmitter, WindowGuard};
 use crate::command::{CommandReceiver};
 use crate::com::commands::CommandDispatch;
 
@@ -18,20 +18,6 @@ impl LocalCom
         let emitter = TauriEmitter::new(app.clone());
         let dispatch = CommandDispatch::new(Emitter::Tauri(emitter), config_receiver.clone());
         LocalCom { dispatch, config_receiver, command_receiver, app }
-    }
-
-    fn send_command(&self, command: CommandRequest)
-        -> Result<(), Error>
-    {
-        let dispatch = self.dispatch.clone();
-        tauri::async_runtime::spawn(async move
-        {
-            if let Err(e) = dispatch.send_command(command).await
-            {
-                eprintln!("Failed to send local command: {e}");
-            }
-        });
-        Ok(())
     }
 
     async fn monitor(&mut self)
@@ -57,7 +43,8 @@ impl LocalCom
                 res = self.command_receiver.recv() =>
                 {
                     let command = res?;
-                    self.send_command(command)
+                    self.dispatch.send_command(command);
+                    Ok(())
                 }
             };
             result?;
@@ -69,7 +56,7 @@ impl LocalCom
     {
         let window = WindowGuard::new(self.app.clone())?;
         let res = self.monitor().await;
-        self.dispatch.cancel_all();
+        self.dispatch.cancel_all().await;
         window.stop().await?;
         res
     }
