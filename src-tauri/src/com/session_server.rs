@@ -124,7 +124,7 @@ impl SessionServer
                             {
                                 self.requests_in_progress.retain(|uuid| uuid != &res.uuid);
                             }
-                            self.emitter.emit(&res.uuid, data.last, &data.data).await?
+                            self.emitter.emit(&res.uuid, data.last, data.data).await?
                         }
                         Err(err) => {
                             self.requests_in_progress.retain(|uuid| uuid != &res.uuid);

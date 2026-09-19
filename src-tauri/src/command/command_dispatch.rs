@@ -22,29 +22,30 @@ impl CommandDispatch
         }
     }
 
-    async fn dispatch(&self, command: &CommandRequest)
+    async fn dispatch(&self, command: CommandRequest)
         -> Result<(), Error>
     {
         let cmd = convert_command_type(command.cmd)
             .ok_or(Error::UnknownCommandType(command.cmd))?;
         println!("Command: {:?}", command);
+        let CommandRequest { uuid, params, .. } = command;
         match cmd
         {
             CommandType::ShellCmd =>
             {
-                handler_command_shell::handler_shell(&self.context, &command.uuid, &command.params).await?;
+                handler_command_shell::handler_shell(&self.context, &uuid, params).await?;
             }
             CommandType::ReadConfigCmd =>
             {
-                handler_command_read_config::handler_read_config(&self.context, &command.uuid).await?;
+                handler_command_read_config::handler_read_config(&self.context, &uuid).await?;
             }
             CommandType::WatchConfigCmd =>
             {
-                handler_command_watch_config::handler_watch_config(&self.context, &command.uuid).await?;
+                handler_command_watch_config::handler_watch_config(&self.context, &uuid).await?;
             }
             CommandType::CancelCmd =>
             {
-                handler_command_cancel::handler_cancel(&self.context, &command.uuid, &command.params).await?;
+                handler_command_cancel::handler_cancel(&self.context, &uuid, params).await?;
             }
         }
         Ok(())
@@ -54,16 +55,18 @@ impl CommandDispatch
     {
         let command_copy = command.clone();
         let dispatch = self.clone();
+        // Kept separately since `command_copy` is moved into `dispatch()` below.
+        let uuid = command_copy.uuid.clone();
         // Cooperative scheduling: the task only runs once this fn yields, so registering after spawn is safe.
         let handle = tauri::async_runtime::spawn(async move
         {
-            let res = dispatch.dispatch(&command_copy).await;
+            let res = dispatch.dispatch(command_copy).await;
             if let Err(e) = res
             {
-                eprintln!("Command {} failed: {e}", command_copy.uuid);
-                let _ = dispatch.context.emit_error(&command_copy.uuid, &e.to_string()).await;
+                eprintln!("Command {} failed: {e}", uuid);
+                let _ = dispatch.context.emit_error(&uuid, &e.to_string()).await;
             }
-            dispatch.context.remove_task(&command_copy.uuid);
+            dispatch.context.remove_task(&uuid);
         });
 
         self.context.insert_task(&command.uuid, handle);

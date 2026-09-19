@@ -19,7 +19,7 @@ impl ComTcpServer
     {
         let emitter = Emitter::Tauri(TauriEmitter::new(app.clone()));
         let transport = Transport::TcpServer(TransportTcpServer::new(config.host.address.as_str(), config.host.port));
-        let mode = Mode::from(config.clone());
+        let mode = Mode::from(config);
         let server = SessionServer::new(config_receiver, command_receiver, emitter, transport, TransportConfig::from(mode));
         Self { app: app.clone(), server }
     }

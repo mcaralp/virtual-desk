@@ -75,7 +75,7 @@ impl HandlerContext
         }
     }
 
-    pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
+    pub async fn emit(&self, id: &str, last: bool, data: serde_json::Value)
         -> Result<(), Error>
     {
         self.emitter.emit(id, last, data).await?;

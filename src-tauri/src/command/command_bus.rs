@@ -20,9 +20,9 @@ impl CommandBus
         Self { sender, app: app.clone() }
     }
 
-    pub fn send(&self, item: &CommandRequest) -> Result<usize, Error>
+    pub fn send(&self, item: CommandRequest) -> Result<usize, Error>
     {
-        let res = self.sender.send(item.clone())?;
+        let res = self.sender.send(item)?;
         Ok(res)
     }
 

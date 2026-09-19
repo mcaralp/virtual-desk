@@ -18,10 +18,10 @@ struct ShellCommandResponse
     pub data: String,
 }
 
-pub async fn handler_shell(com: &HandlerContext, id: &str, params: &serde_json::Value)
+pub async fn handler_shell(com: &HandlerContext, id: &str, params: serde_json::Value)
     -> Result<(), Error>
 {
-    let params: ShellCommandParams = serde_json::from_value(params.clone())?;
+    let params: ShellCommandParams = serde_json::from_value(params)?;
 
     let mut child = Command::new(&params.command)
         .args(&params.args)
@@ -44,10 +44,10 @@ pub async fn handler_shell(com: &HandlerContext, id: &str, params: &serde_json::
         }
 
         let data = line.clone();
-        com.emit(id, false, &serde_json::to_value(ShellCommandResponse { data })?).await?;
+        com.emit(id, false, serde_json::to_value(ShellCommandResponse { data })?).await?;
         line.clear();
     }
 
-    com.emit(id, true, &serde_json::Value::Null).await?;
+    com.emit(id, true, serde_json::Value::Null).await?;
     Ok(())
 }

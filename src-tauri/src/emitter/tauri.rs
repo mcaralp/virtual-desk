@@ -15,14 +15,14 @@ impl TauriEmitter
         TauriEmitter { app }
     }
 
-    pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
+    pub async fn emit(&self, id: &str, last: bool, data: serde_json::Value)
         -> Result<(), Error>
     {
         let response = CommandResponse {
             uuid: id.to_string(),
             result: Ok(CommandResponseData {
                 last: last,
-                data: data.clone()
+                data: data
             })
         };
         self.app.emit("command-response", response)?;

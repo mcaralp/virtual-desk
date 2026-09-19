@@ -16,7 +16,7 @@ pub enum Emitter
 
 impl Emitter
 {
-    pub async fn emit(&self, id: &str, last: bool, data: &Value)
+    pub async fn emit(&self, id: &str, last: bool, data: Value)
         -> Result<(), Error>
     {
         match self

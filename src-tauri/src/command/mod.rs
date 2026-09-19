@@ -26,6 +26,6 @@ pub fn exec_command(command: CommandRequest, app: AppHandle)
 {
     let state = app.state::<CommandBus>();
     // no error if there are currently no subscribers
-    let _ = state.send(&command);
+    let _ = state.send(command);
     Ok(())
 }
