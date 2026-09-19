@@ -1,64 +1,41 @@
-mod commands;
-mod mode;
-mod error;
-mod emitter;
 mod window_guard;
+mod com_local;
+mod com_tcp_client;
+mod com_tcp_server;
+mod session_client;
+mod session_server;
+mod transport;
+mod transport_tcp_client;
+mod transport_tcp_server;
+mod frame;
 
 use tokio::time::{sleep, Duration};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use crate::config::{ConfigReceiver, ConfigWatcher, Mode, AppConfig};
-use crate::command::{CommandReceiver, CommandState};
+use crate::command::{CommandBusReceiver, CommandBus};
+use crate::error::Error;
 
-pub use mode::{LocalCom, TcpServerCom, TcpClientCom};
-pub use error::Error;
-pub use emitter::{Emitter, TauriEmitter, MpscEmitter};
-pub use window_guard::WindowGuard;
+pub use com_local::ComLocal;
+pub use com_tcp_client::ComTcpClient;
+pub use com_tcp_server::ComTcpServer;
 
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct CommandRequest
-{
-    #[serde(default)]
-    pub cmd: u32,
-    #[serde(default)]
-    pub uuid: String,
-    #[serde(default)]
-    pub params: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CommandResponseData
-{
-    pub last: bool,
-    pub data: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CommandResponse
-{
-    pub uuid: String,
-    pub result: Result<CommandResponseData, String>,
-}
-
-pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: &tauri::AppHandle, config: AppConfig)
+pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandBusReceiver, app: &tauri::AppHandle, config: AppConfig)
     -> Result<(), Error>
 {
     match config.mode
     {
         Mode::Local(_) =>
         {
-            let mut com = LocalCom::new(config_receiver, command_receiver, app);
+            let mut com = ComLocal::new(config_receiver, command_receiver, app);
             com.run().await
         },
         Mode::TcpServer(remote_config) =>
         {
-            let mut com = TcpServerCom::new(config_receiver, command_receiver, remote_config, app);
+            let mut com = ComTcpServer::new(config_receiver, command_receiver, remote_config, app);
             com.run().await
         },
         Mode::TcpClient(tcp_client_config) =>
         {
-            let mut com = TcpClientCom::new(config_receiver, tcp_client_config);
+            let mut com = ComTcpClient::new(config_receiver, tcp_client_config);
             com.run().await
         }
     }
@@ -75,7 +52,7 @@ pub fn setup(config_path: String, app: tauri::AppHandle)
             eprintln!("Error starting config watcher: {:?}", e);
             return;
         }
-        let command_state = CommandState::new(&app);
+        let command_state = CommandBus::new(&app);
         command_state.start();
 
         loop

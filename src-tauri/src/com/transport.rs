@@ -1,28 +1,24 @@
-mod tcp_server;
-mod tcp_client;
-
-use crate::com::Error;
+use crate::error::Error;
 use tokio_util::bytes::BytesMut;
+use super::transport_tcp_client::TransportTcpClient;
+use super::transport_tcp_server::TransportTcpServer;
 
-pub use tcp_server::TcpServer;
-pub use tcp_client::TcpClient;
-
-pub enum TransportType
+pub enum Transport
 {
-    TcpServer(TcpServer),
-    TcpClient(TcpClient),
+    TcpServer(TransportTcpServer),
+    TcpClient(TransportTcpClient),
 }
 
-impl TransportType
+impl Transport
 {
     pub async fn connect(&mut self) -> Result<(), Error>
     {
         match self {
-            TransportType::TcpServer(server) =>
+            Transport::TcpServer(server) =>
             {
                 server.connect().await
             }
-            TransportType::TcpClient(client) =>
+            Transport::TcpClient(client) =>
             {
                 client.connect().await
             }
@@ -32,11 +28,11 @@ impl TransportType
     pub async fn read(&mut self, buffer: &mut BytesMut) -> Result<usize, Error>
     {
         match self {
-            TransportType::TcpServer(server) =>
+            Transport::TcpServer(server) =>
             {
                 server.read(buffer).await
             }
-            TransportType::TcpClient(client) =>
+            Transport::TcpClient(client) =>
             {
                 client.read(buffer).await
             }
@@ -46,11 +42,11 @@ impl TransportType
     pub async fn write(&mut self, data: &[u8]) -> Result<(), Error>
     {
         match self {
-            TransportType::TcpServer(server) =>
+            Transport::TcpServer(server) =>
             {
                 server.write(data).await
             }
-            TransportType::TcpClient(client) =>
+            Transport::TcpClient(client) =>
             {
                 client.write(data).await
             }

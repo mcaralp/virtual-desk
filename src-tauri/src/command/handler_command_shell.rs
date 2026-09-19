@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::{CommandContext, util};
-use crate::com::Error;
+use super::{HandlerContext, util};
+use crate::error::Error;
 
 #[derive(Debug, Deserialize)]
 struct ShellCommandParams
@@ -18,7 +18,7 @@ struct ShellCommandResponse
     pub data: String,
 }
 
-pub async fn handler_shell(com: &CommandContext, id: &str, params: &serde_json::Value)
+pub async fn handler_shell(com: &HandlerContext, id: &str, params: &serde_json::Value)
     -> Result<(), Error>
 {
     let params: ShellCommandParams = serde_json::from_value(params.clone())?;
@@ -30,7 +30,7 @@ pub async fn handler_shell(com: &CommandContext, id: &str, params: &serde_json::
         .spawn()?;
 
     let stdout = child.stdout.take()
-        .ok_or_else(|| Error::Other("Child process has no stdout".to_string()))?;
+        .ok_or_else(|| Error::ChildProcessNoStdout)?;
     let mut reader = BufReader::new(stdout);
     let mut line = String::new();
 

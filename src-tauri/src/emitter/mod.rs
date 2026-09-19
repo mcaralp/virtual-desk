@@ -2,7 +2,7 @@ mod mpsc;
 mod tauri;
 
 use serde_json::Value;
-use crate::com::Error;
+use crate::error::Error;
 
 pub use tauri::TauriEmitter;
 pub use mpsc::MpscEmitter;

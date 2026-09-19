@@ -1,9 +1,9 @@
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::bytes::BytesMut;
-use crate::com::Error;
+use crate::error::Error;
 
-pub struct TcpServer
+pub struct TransportTcpServer
 {
     listener: Option<TcpListener>,
     client: Option<TcpStream>,
@@ -11,7 +11,7 @@ pub struct TcpServer
     address: String,
 }
 
-impl TcpServer
+impl TransportTcpServer
 {
     pub fn new(address: &str, port: u16) -> Self
     {
@@ -56,7 +56,7 @@ impl TcpServer
                 Ok(0) => {
                     eprintln!("Client disconnected");
                     self.client = None;
-                    return Err(Error::Other("Client disconnected".to_string()));
+                    return Err(Error::ClientDisconnected);
                 },
                 Ok(n) => return Ok(n),
                 Err(e) => {
@@ -66,7 +66,7 @@ impl TcpServer
                 }
             }
         }
-        Err(Error::Other("No client connected".to_string()))
+        Err(Error::NoClientConnected)
     }
 
     pub async fn write(&mut self, data: &[u8])
@@ -84,6 +84,6 @@ impl TcpServer
                 }
             }
         }
-        Err(Error::Other("No client connected".to_string()))
+        Err(Error::NoClientConnected)
     }
 }

@@ -1,12 +1,12 @@
 use serde::Serialize;
 use serde_json::to_vec;
 use tokio_util::bytes::BytesMut;
-use crate::com::Error;
+use crate::error::Error;
 
 const HEADER_SIZE: usize = 8;
 const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
 
-pub fn encode<T: Serialize>(cmd: u32, value: &T)
+pub fn encode_frame<T: Serialize>(cmd: u32, value: &T)
     -> Result<Vec<u8>, Error>
 {
     let payload = to_vec(value)?;
@@ -34,7 +34,7 @@ pub fn decode_frame(buffer: &mut BytesMut)
 
     if len > MAX_FRAME_SIZE
     {
-        return Err(Error::Other(format!("Frame too large: {len} bytes (max {MAX_FRAME_SIZE})")));
+        return Err(Error::FrameTooLarge { size: len, max: MAX_FRAME_SIZE });
     }
 
     if buffer.len() < HEADER_SIZE + len

@@ -1,23 +1,24 @@
 use crate::config::{ConfigReceiver, Mode};
-use crate::com::{Error, Emitter, TauriEmitter, WindowGuard};
-use crate::command::{CommandReceiver};
-use crate::com::commands::CommandDispatch;
+use crate::emitter::{Emitter, TauriEmitter};
+use crate::command::{CommandBusReceiver, CommandDispatch};
+use crate::error::Error;
+use super::window_guard::WindowGuard;
 
-pub struct LocalCom
+pub struct ComLocal
 {
     dispatch: CommandDispatch,
     config_receiver: ConfigReceiver,
-    command_receiver: CommandReceiver,
+    command_receiver: CommandBusReceiver,
     app: tauri::AppHandle,
 }
 
-impl LocalCom
+impl ComLocal
 {
-    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: &tauri::AppHandle) -> Self
+    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandBusReceiver, app: &tauri::AppHandle) -> Self
     {
         let emitter = TauriEmitter::new(app.clone());
         let dispatch = CommandDispatch::new(&Emitter::Tauri(emitter), &config_receiver);
-        LocalCom { dispatch, config_receiver, command_receiver, app: app.clone() }
+        ComLocal { dispatch, config_receiver, command_receiver, app: app.clone() }
     }
 
     async fn monitor(&mut self)

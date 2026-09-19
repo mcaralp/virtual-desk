@@ -1,16 +1,17 @@
 use tokio::sync::broadcast;
-use crate::com::{CommandRequest, CommandResponse};
-use crate::config;
+use crate::command::{CommandRequest, CommandResponse};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error
 {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error("Config error: {0}")]
-    ConfigError(#[from] config::Error),
+    #[error("Serde YAML error: {0}")]
+    SerdeYamlError(#[from] serde_yaml_ng::Error),
     #[error("Serde JSON error: {0}")]
-    SerdeError(#[from] serde_json::Error),
+    SerdeJsonError(#[from] serde_json::Error),
+    #[error("Notify error: {0}")]
+    NotifyError(#[from] notify::Error),
     #[error("Mpsc send error: {0}")]
     MpscError(#[from] tokio::sync::mpsc::error::SendError<CommandResponse>),
     #[error("Broadcast send error: {0}")]
@@ -25,6 +26,18 @@ pub enum Error
     Cancelled,
     #[error("Configuration changed")]
     ConfigChanged,
+    #[error("Unknown command type: {0}")]
+    UnknownCommandType(u32),
+    #[error("Unknown cancellation token: {0}")]
+    UnknownCancellationToken(String),
+    #[error("Child process has no stdout")]
+    ChildProcessNoStdout,
+    #[error("Frame too large: {size} bytes (max {max})")]
+    FrameTooLarge { size: usize, max: usize },
+    #[error("Client disconnected")]
+    ClientDisconnected,
+    #[error("No client connected")]
+    NoClientConnected,
     #[error("{0}")]
     Other(String),
 }
@@ -34,5 +47,13 @@ impl From<&str> for Error
     fn from(err: &str) -> Self
     {
         Error::Other(err.into())
+    }
+}
+
+impl From<String> for Error
+{
+    fn from(err: String) -> Self
+    {
+        Error::Other(err)
     }
 }

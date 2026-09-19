@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use super::CommandContext;
-use crate::com::Error;
+use super::HandlerContext;
+use crate::error::Error;
 
 #[derive(Debug, Deserialize)]
 struct CancelCommandParams
@@ -8,7 +8,7 @@ struct CancelCommandParams
     pub uuid: String,
 }
 
-pub async fn handler_cancel(com: &CommandContext, id: &str, params: &serde_json::Value)
+pub async fn handler_cancel(com: &HandlerContext, id: &str, params: &serde_json::Value)
     -> Result<(), Error>
 {
     let cancel_params: CancelCommandParams = serde_json::from_value(params.clone())?;

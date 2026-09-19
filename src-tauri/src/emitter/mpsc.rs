@@ -1,17 +1,17 @@
-use tauri::Emitter;
-use crate::com::{CommandResponse, CommandResponseData, Error};
+use crate::command::{CommandResponse, CommandResponseData};
+use crate::error::Error;
 
 #[derive(Clone)]
-pub struct TauriEmitter
+pub struct MpscEmitter
 {
-    pub app: tauri::AppHandle
+    pub sender: tokio::sync::mpsc::Sender<CommandResponse>
 }
 
-impl TauriEmitter
+impl MpscEmitter
 {
-    pub fn new(app: tauri::AppHandle) -> Self
+    pub fn new(sender: &tokio::sync::mpsc::Sender<CommandResponse>) -> Self
     {
-        TauriEmitter { app }
+        MpscEmitter { sender: sender.clone() }
     }
 
     pub async fn emit(&self, id: &str, last: bool, data: &serde_json::Value)
@@ -24,7 +24,7 @@ impl TauriEmitter
                 data: data.clone()
             })
         };
-        self.app.emit("command-response", response)?;
+        self.sender.send(response).await?;
         Ok(())
     }
 
@@ -35,7 +35,7 @@ impl TauriEmitter
             uuid: id.to_string(),
             result: Err(error.to_string())
         };
-        self.app.emit("command-response", response)?;
+        self.sender.send(response).await?;
         Ok(())
     }
 }

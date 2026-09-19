@@ -2,31 +2,32 @@ use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
 use tokio::time::{sleep, Duration};
 use crate::config::{ConfigReceiver, TransportConfig};
-use crate::com::mode::remote::TransportType;
-use crate::com::{CommandRequest, CommandResponse, Error, Emitter, MpscEmitter};
-use crate::com::commands::CommandDispatch;
-use super::util::{encode, decode_frame};
+use crate::command::{CommandRequest, CommandResponse, CommandDispatch};
+use crate::emitter::{Emitter, MpscEmitter};
+use crate::error::Error;
+use super::transport::Transport;
+use super::frame::{encode_frame, decode_frame};
 
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
-pub struct RemoteClient
+pub struct SessionClient
 {
     dispatch: CommandDispatch,
     config_receiver: ConfigReceiver,
     response_receiver: tokio::sync::mpsc::Receiver<CommandResponse>,
     buffer: BytesMut,
-    transport: TransportType,
+    transport: Transport,
     config: TransportConfig,
 }
 
-impl RemoteClient
+impl SessionClient
 {
-    pub fn new(config_receiver: ConfigReceiver, transport: TransportType, config: TransportConfig) -> Self
+    pub fn new(config_receiver: ConfigReceiver, transport: Transport, config: TransportConfig) -> Self
     {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         let emitter = Emitter::Mpsc(MpscEmitter::new(&tx));
         let dispatch = CommandDispatch::new(&emitter, &config_receiver);
-        RemoteClient { dispatch, config_receiver, response_receiver: rx, buffer: BytesMut::with_capacity(4096), transport, config }
+        SessionClient { dispatch, config_receiver, response_receiver: rx, buffer: BytesMut::with_capacity(4096), transport, config }
     }
 
     pub async fn run(&mut self)
@@ -95,7 +96,7 @@ impl RemoteClient
                 res = self.response_receiver.recv() => {
                     if let Some(response) = res
                     {
-                        let data = encode(0, &response)?;
+                        let data = encode_frame(0, &response)?;
                         self.transport.write(&data).await?;
                     }
                     Ok(())

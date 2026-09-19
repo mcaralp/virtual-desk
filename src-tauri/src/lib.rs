@@ -1,6 +1,8 @@
 mod com;
 mod config;
 mod command;
+mod emitter;
+mod error;
 
 pub fn get_config_path() -> String
 {

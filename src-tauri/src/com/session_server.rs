@@ -1,27 +1,28 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
 
-use crate::com::mode::remote::{TransportType};
-use crate::com::{Error, CommandResponse, Emitter};
+use super::transport::Transport;
+use crate::command::{CommandResponse, CommandBusReceiver};
+use crate::emitter::Emitter;
+use crate::error::Error;
 use crate::config::{ConfigReceiver, TransportConfig};
-use crate::command::CommandReceiver;
 
-use super::util::{encode, decode_frame};
+use super::frame::{encode_frame, decode_frame};
 
-pub struct RemoteServer
+pub struct SessionServer
 {
     emitter: Emitter,
     config_receiver: ConfigReceiver,
-    command_receiver: CommandReceiver,
+    command_receiver: CommandBusReceiver,
     buffer: BytesMut,
     requests_in_progress: Vec<String>,
-    transport: TransportType,
+    transport: Transport,
     config: TransportConfig
 }
 
-impl RemoteServer
+impl SessionServer
 {
-    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, emitter: Emitter, transport: TransportType, config: TransportConfig) -> Self
+    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandBusReceiver, emitter: Emitter, transport: Transport, config: TransportConfig) -> Self
     {
         Self { emitter, config_receiver, command_receiver, buffer: BytesMut::with_capacity(4096), requests_in_progress: Vec::new(), transport, config }
     }
@@ -94,7 +95,7 @@ impl RemoteServer
                 res = self.command_receiver.recv() => {
                     let command = res?;
                     self.requests_in_progress.push(command.uuid.clone());
-                    let data = encode(0, &command)?;
+                    let data = encode_frame(0, &command)?;
                     self.transport.write(&data).await?;
                     Ok(())
                 }
