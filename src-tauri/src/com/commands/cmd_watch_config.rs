@@ -1,5 +1,5 @@
+use super::{CommandContext, util};
 use crate::com::Error;
-use crate::com::commands::{CommandContext, util};
 
 pub async fn cmd_config(com: &CommandContext, id: &str)
     -> Result<(), Error>

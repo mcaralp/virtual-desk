@@ -11,6 +11,6 @@ pub use app::AppConfig;
 pub use window::WindowConfig;
 pub use page::PageConfig;
 pub use widget::WidgetConfig;
-pub use mode::{Mode, TcpServerConfig, TcpClientConfig};
+pub use mode::{Mode, TcpServerConfig, TcpClientConfig, TransportConfig};
 pub use error::Error;
 pub use watcher::{ConfigWatcher, ConfigReceiver};

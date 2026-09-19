@@ -13,11 +13,11 @@ pub struct LocalCom
 
 impl LocalCom
 {
-    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: tauri::AppHandle) -> Self
+    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: &tauri::AppHandle) -> Self
     {
         let emitter = TauriEmitter::new(app.clone());
-        let dispatch = CommandDispatch::new(Emitter::Tauri(emitter), config_receiver.clone());
-        LocalCom { dispatch, config_receiver, command_receiver, app }
+        let dispatch = CommandDispatch::new(&Emitter::Tauri(emitter), &config_receiver);
+        LocalCom { dispatch, config_receiver, command_receiver, app: app.clone() }
     }
 
     async fn monitor(&mut self)
@@ -43,7 +43,7 @@ impl LocalCom
                 res = self.command_receiver.recv() =>
                 {
                     let command = res?;
-                    self.dispatch.send_command(command);
+                    self.dispatch.send_command(&command);
                     Ok(())
                 }
             };
@@ -54,7 +54,7 @@ impl LocalCom
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        let window = WindowGuard::new(self.app.clone())?;
+        let window = WindowGuard::new(&self.app)?;
         let res = self.monitor().await;
         self.dispatch.cancel_all().await;
         window.stop().await?;

@@ -1,54 +1,49 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use crate::com::{Error, CommandResponse, Emitter, TauriEmitter, WindowGuard};
-use crate::config::{ConfigReceiver, Mode, TcpServerConfig};
+
+use crate::com::mode::remote::{TransportType};
+use crate::com::{Error, CommandResponse, Emitter};
+use crate::config::{ConfigReceiver, TransportConfig};
 use crate::command::CommandReceiver;
+
 use super::util::{encode, decode_frame};
 
-pub struct TcpServerCom
+pub struct RemoteServer
 {
     emitter: Emitter,
     config_receiver: ConfigReceiver,
     command_receiver: CommandReceiver,
-    config: TcpServerConfig,
     buffer: BytesMut,
-    app: tauri::AppHandle,
     requests_in_progress: Vec<String>,
+    transport: TransportType,
+    config: TransportConfig
 }
 
-impl TcpServerCom
+impl RemoteServer
 {
-    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, config: TcpServerConfig, app: tauri::AppHandle) -> Self
+    pub fn new(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, emitter: Emitter, transport: TransportType, config: TransportConfig) -> Self
     {
-        let emitter = Emitter::Tauri(TauriEmitter::new(app.clone()));
-        Self { emitter, config_receiver, command_receiver, config, buffer: BytesMut::with_capacity(4096), app, requests_in_progress: Vec::new() }
+        Self { emitter, config_receiver, command_receiver, buffer: BytesMut::with_capacity(4096), requests_in_progress: Vec::new(), transport, config }
     }
 
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        let window = WindowGuard::new(self.app.clone())?;
-        let res = self.accept_connections().await;
-        window.stop().await?;
-
-        res
+        self.accept_connections().await
     }
 
     async fn accept_connections(&mut self)
         -> Result<(), Error>
     {
-        let listener = TcpListener::bind((self.config.host.address.as_str(), self.config.host.port)).await?;
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = listener.accept() => {
+                result = self.transport.connect() => {
                     match result {
-                        Ok((socket, addr)) => {
-                            println!("Accepted connection from {}", addr);
+                        Ok(()) => {
+                            println!("Accepted connection");
                             self.buffer.clear();
-                            self.handle_connection(socket).await
+                            self.handle_connection().await
                         }
                         Err(e) => {
                             eprintln!("Failed to accept connection: {e}");
@@ -81,19 +76,18 @@ impl TcpServerCom
         }
     }
 
-    async fn handle_connection(&mut self, mut socket: TcpStream)
+    async fn handle_connection(&mut self)
         -> Result<(), Error>
     {
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = socket.read_buf(&mut self.buffer) => {
+                result = self.transport.read(&mut self.buffer) => {
                     match result {
-                        Ok(0) => break,
                         Ok(_) => {
                             self.handle_incoming_data().await?;
                         }
-                        Err(e) => return Err(Error::IoError(e)),
+                        Err(e) => return Err(e),
                     }
                     Ok(())
                 }
@@ -101,7 +95,7 @@ impl TcpServerCom
                     let command = res?;
                     self.requests_in_progress.push(command.uuid.clone());
                     let data = encode(0, &command)?;
-                    socket.write_all(&data).await?;
+                    self.transport.write(&data).await?;
                     Ok(())
                 }
                 _ = self.config_receiver.recv() => {
@@ -111,7 +105,6 @@ impl TcpServerCom
             };
             result?;
         }
-        Ok(())
     }
 
     async fn handle_incoming_data(&mut self)
@@ -149,14 +142,8 @@ impl TcpServerCom
         let result = self.config_receiver.read_config();
         if let Ok(config) = result
         {
-            if let Mode::TcpServer(remote_config) = &config.mode
-            {
-                if self.config.host != remote_config.host
-                {
-                    return Err(Error::ConfigChanged);
-                }
-            }
-            else
+            let transport_config = TransportConfig::from(config.mode);
+            if self.config != transport_config
             {
                 return Err(Error::ConfigChanged);
             }

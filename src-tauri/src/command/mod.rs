@@ -37,16 +37,16 @@ pub struct CommandState
 
 impl CommandState
 {
-    pub fn new(app: AppHandle) -> Self
+    pub fn new(app: &AppHandle) -> Self
     {
         let (sender, _) = broadcast::channel(64);
         let sender = Arc::new(sender);
-        Self { sender, app }
+        Self { sender, app: app.clone() }
     }
 
-    pub fn send(&self, item: CommandRequest) -> Result<usize, Error>
+    pub fn send(&self, item: &CommandRequest) -> Result<usize, Error>
     {
-        let res = self.sender.send(item)?;
+        let res = self.sender.send(item.clone())?;
         Ok(res)
     }
 
@@ -70,6 +70,6 @@ pub fn exec_command(command: CommandRequest, app: AppHandle)
 {
     let state = app.state::<CommandState>();
     // no error if there are currently no subscribers
-    let _ = state.send(command);
+    let _ = state.send(&command);
     Ok(())
 }

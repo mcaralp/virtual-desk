@@ -9,10 +9,10 @@ pub struct WindowGuard
 
 impl WindowGuard
 {
-    pub fn new(app: tauri::AppHandle) -> tauri::Result<Self>
+    pub fn new(app: &tauri::AppHandle) -> tauri::Result<Self>
     {
         let window = tauri::WebviewWindowBuilder::new(
-        &app,
+        app,
             "main",
             tauri::WebviewUrl::App("index.html".into())
         ).title("widgets")

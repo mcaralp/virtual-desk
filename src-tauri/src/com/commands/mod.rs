@@ -138,11 +138,11 @@ pub struct CommandDispatch
 
 impl CommandDispatch
 {
-    pub fn new(emitter: Emitter, config_receiver: ConfigReceiver) -> Self
+    pub fn new(emitter: &Emitter, config_receiver: &ConfigReceiver) -> Self
     {
         Self
         {
-            context: CommandContext::new(emitter, config_receiver),
+            context: CommandContext::new(emitter.clone(), config_receiver.clone()),
         }
     }
 
@@ -174,23 +174,23 @@ impl CommandDispatch
         Ok(())
     }
 
-    pub fn send_command(&self, command: CommandRequest)
+    pub fn send_command(&self, command: &CommandRequest)
     {
-        let uuid = command.uuid.clone();
+        let command_copy = command.clone();
         let dispatch = self.clone();
         // Cooperative scheduling: the task only runs once this fn yields, so registering after spawn is safe.
         let handle = tauri::async_runtime::spawn(async move
         {
-            let res = dispatch.dispatch(&command).await;
+            let res = dispatch.dispatch(&command_copy).await;
             if let Err(e) = res
             {
-                eprintln!("Command {} failed: {e}", command.uuid);
-                let _ = dispatch.context.emit_error(&command.uuid, &e.to_string()).await;
+                eprintln!("Command {} failed: {e}", command_copy.uuid);
+                let _ = dispatch.context.emit_error(&command_copy.uuid, &e.to_string()).await;
             }
-            dispatch.context.remove_task(&command.uuid);
+            dispatch.context.remove_task(&command_copy.uuid);
         });
 
-        self.context.insert_task(&uuid, handle);
+        self.context.insert_task(&command.uuid, handle);
     }
 
     pub async fn cancel_all(&self)

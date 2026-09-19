@@ -10,6 +10,24 @@ pub enum Mode
     TcpClient(TcpClientConfig)
 }
 
+impl From<TcpClientConfig> for Mode {
+    fn from(config: TcpClientConfig) -> Self {
+        Mode::TcpClient(config)
+    }
+}
+
+impl From<TcpServerConfig> for Mode {
+    fn from(config: TcpServerConfig) -> Self {
+        Mode::TcpServer(config)
+    }
+}
+
+impl From<LocalConfig> for Mode {
+    fn from(config: LocalConfig) -> Self {
+        Mode::Local(config)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LocalConfig
 {
@@ -27,20 +45,21 @@ pub struct Host
     pub port: u16,
 }
 
-impl Default for Host {
-    fn default() -> Self {
-        Host {
-            address: default_address(),
-            port: default_port(),
-        }
+impl Default for Host
+{
+    fn default() -> Self
+    {
+        Host { address: default_address(), port: default_port() }
     }
 }
 
-fn default_address() -> String {
+fn default_address() -> String
+{
     "0.0.0.0".to_string()
 }
 
-fn default_port() -> u16 {
+fn default_port() -> u16
+{
     8080
 }
 
@@ -59,4 +78,25 @@ pub struct TcpClientConfig
     pub window: WindowConfig,
     pub pages: Vec<PageConfig>,
     pub widgets: Vec<WidgetConfig>
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TransportConfig
+{
+    TcpClient(Host),
+    TcpServer(Host),
+    Local
+}
+
+impl From<Mode> for TransportConfig
+{
+    fn from(config: Mode) -> Self
+    {
+        match config
+        {
+            Mode::Local(_) => TransportConfig::Local,
+            Mode::TcpServer(server) => TransportConfig::TcpServer(server.host),
+            Mode::TcpClient(client) => TransportConfig::TcpClient(client.host),
+        }
+    }
 }

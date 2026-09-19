@@ -1,5 +1,5 @@
 pub mod local;
-pub mod tcp;
+pub mod remote;
 
-pub use tcp::{TcpClientCom, TcpServerCom};
+pub use remote::{TcpClientCom, TcpServerCom};
 pub use local::LocalCom;

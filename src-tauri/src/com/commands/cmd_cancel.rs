@@ -1,6 +1,6 @@
 use serde::Deserialize;
+use super::CommandContext;
 use crate::com::Error;
-use crate::com::commands::CommandContext;
 
 #[derive(Debug, Deserialize)]
 struct CancelCommandParams

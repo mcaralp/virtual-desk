@@ -29,10 +29,10 @@ pub enum Error
     Other(String),
 }
 
-impl From<String> for Error
+impl From<&str> for Error
 {
-    fn from(err: String) -> Self
+    fn from(err: &str) -> Self
     {
-        Error::Other(err)
+        Error::Other(err.into())
     }
 }

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+use super::{CommandContext, util};
 use crate::com::Error;
-use crate::com::commands::{CommandContext, util};
 
 #[derive(Debug, Deserialize)]
 struct ShellCommandParams

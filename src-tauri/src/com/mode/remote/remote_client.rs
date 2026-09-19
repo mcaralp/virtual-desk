@@ -1,32 +1,32 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
-use crate::config::{ConfigReceiver, Mode, TcpClientConfig};
+use crate::config::{ConfigReceiver, TransportConfig};
+use crate::com::mode::remote::TransportType;
 use crate::com::{CommandRequest, CommandResponse, Error, Emitter, MpscEmitter};
 use crate::com::commands::CommandDispatch;
 use super::util::{encode, decode_frame};
 
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
-pub struct TcpClientCom
+pub struct RemoteClient
 {
     dispatch: CommandDispatch,
     config_receiver: ConfigReceiver,
     response_receiver: tokio::sync::mpsc::Receiver<CommandResponse>,
-    config: TcpClientConfig,
     buffer: BytesMut,
+    transport: TransportType,
+    config: TransportConfig,
 }
 
-impl TcpClientCom
+impl RemoteClient
 {
-    pub fn new(config_receiver: ConfigReceiver, config: TcpClientConfig) -> Self
+    pub fn new(config_receiver: ConfigReceiver, transport: TransportType, config: TransportConfig) -> Self
     {
         let (tx, rx) = tokio::sync::mpsc::channel(100);
         let emitter = Emitter::Mpsc(MpscEmitter::new(&tx));
-        let dispatch = CommandDispatch::new(emitter, config_receiver.clone());
-        TcpClientCom { dispatch, config_receiver, response_receiver: rx, config, buffer: BytesMut::with_capacity(4096) }
+        let dispatch = CommandDispatch::new(&emitter, &config_receiver);
+        RemoteClient { dispatch, config_receiver, response_receiver: rx, buffer: BytesMut::with_capacity(4096), transport, config }
     }
 
     pub async fn run(&mut self)
@@ -42,15 +42,15 @@ impl TcpClientCom
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = TcpStream::connect((self.config.host.address.as_str(), self.config.host.port)) => {
+                result = self.transport.connect() => {
                     match result {
-                        Ok(socket) => {
-                            println!("Connected to {}:{}", self.config.host.address, self.config.host.port);
+                        Ok(_) => {
+                            println!("Connected to remote server");
                             self.buffer.clear();
-                            self.handle_socket(socket).await
+                            self.handle_socket().await
                         }
                         Err(e) => {
-                            eprintln!("Failed to connect to {}:{}: {e}", self.config.host.address, self.config.host.port);
+                            eprintln!("Failed to connect to remote server: {e}");
                             Ok(())
                         }
                     }
@@ -77,19 +77,18 @@ impl TcpClientCom
         }
     }
 
-    async fn handle_socket(&mut self, mut socket: TcpStream)
+    async fn handle_socket(&mut self)
         -> Result<(), Error>
     {
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = socket.read_buf(&mut self.buffer) => {
+                result = self.transport.read(&mut self.buffer) => {
                     match result {
-                        Ok(0) => break,
                         Ok(_) => {
                             self.handle_incoming_data().await?;
                         }
-                        Err(e) => return Err(Error::IoError(e)),
+                        Err(e) => return Err(e)
                     }
                     Ok(())
                 }
@@ -97,7 +96,7 @@ impl TcpClientCom
                     if let Some(response) = res
                     {
                         let data = encode(0, &response)?;
-                        socket.write_all(&data).await?;
+                        self.transport.write(&data).await?;
                     }
                     Ok(())
                 }
@@ -108,7 +107,6 @@ impl TcpClientCom
             };
             result?;
         }
-        Ok(())
     }
 
     async fn handle_incoming_data(&mut self)
@@ -121,7 +119,7 @@ impl TcpClientCom
             {
                 0 => {
                     let command = from_slice::<CommandRequest>(&payload)?;
-                    self.dispatch.send_command(command);
+                    self.dispatch.send_command(&command);
                 }
                 _ => eprintln!("Ignoring frame with unknown command id: {cmd}"),
             }
@@ -134,14 +132,8 @@ impl TcpClientCom
         let result = self.config_receiver.read_config();
         if let Ok(config) = result
         {
-            if let Mode::TcpClient(remote_config) = &config.mode
-            {
-                if self.config.host != remote_config.host
-                {
-                    return Err(Error::ConfigChanged);
-                }
-            }
-            else
+            let transport_config = TransportConfig::from(config.mode);
+            if self.config != transport_config
             {
                 return Err(Error::ConfigChanged);
             }

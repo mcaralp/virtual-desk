@@ -41,7 +41,7 @@ pub struct CommandResponse
     pub result: Result<CommandResponseData, String>,
 }
 
-pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: tauri::AppHandle, config: AppConfig)
+pub async fn run(config_receiver: ConfigReceiver, command_receiver: CommandReceiver, app: &tauri::AppHandle, config: AppConfig)
     -> Result<(), Error>
 {
     match config.mode
@@ -75,7 +75,7 @@ pub fn setup(config_path: String, app: tauri::AppHandle)
             eprintln!("Error starting config watcher: {:?}", e);
             return;
         }
-        let command_state = CommandState::new(app.clone());
+        let command_state = CommandState::new(&app);
         command_state.start();
 
         loop
@@ -84,7 +84,7 @@ pub fn setup(config_path: String, app: tauri::AppHandle)
             {
                 Ok(config) => 
                 {
-                    let err = run(config_watcher.subscribe(), command_state.subscribe(), app.clone(), config ).await;
+                    let err = run(config_watcher.subscribe(), command_state.subscribe(), &app, config ).await;
                     match err
                     {
                         Ok(()) => {},
