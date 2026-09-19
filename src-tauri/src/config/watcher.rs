@@ -4,9 +4,7 @@ use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
 use tokio::sync::broadcast;
 
-use crate::config::Error;
-use crate::config::app::AppConfig;
-use crate::config::util;
+use super::{Error, AppConfig, util};
 
 pub struct ConfigReceiver
 {

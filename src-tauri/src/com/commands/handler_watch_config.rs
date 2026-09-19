@@ -1,7 +1,7 @@
 use super::{CommandContext, util};
 use crate::com::Error;
 
-pub async fn cmd_config(com: &CommandContext, id: &str)
+pub async fn handler_watch_config(com: &CommandContext, id: &str)
     -> Result<(), Error>
 {
     loop

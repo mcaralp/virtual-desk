@@ -1,5 +1,4 @@
-use crate::config::Error;
-use crate::config::app::AppConfig;
+use super::{Error, AppConfig};
 
 pub fn read_config(config_path: &String)
     -> Result<AppConfig, Error>

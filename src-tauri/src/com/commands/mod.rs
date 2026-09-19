@@ -1,7 +1,7 @@
-mod cmd_cancel;
-mod cmd_read_config;
-mod cmd_watch_config;
-mod cmd_shell;
+mod handler_cancel;
+mod handler_read_config;
+mod handler_watch_config;
+mod handler_shell;
 mod util;
 
 use std::sync::{Arc, Mutex};
@@ -156,19 +156,19 @@ impl CommandDispatch
         {
             CommandType::ShellCmd =>
             {
-                cmd_shell::cmd_shell(&self.context, &command.uuid, &command.params).await?;
+                handler_shell::handler_shell(&self.context, &command.uuid, &command.params).await?;
             }
             CommandType::ReadConfigCmd =>
             {
-                cmd_read_config::cmd_config(&self.context, &command.uuid).await?;
+                handler_read_config::handler_read_config(&self.context, &command.uuid).await?;
             }
             CommandType::WatchConfigCmd =>
             {
-                cmd_watch_config::cmd_config(&self.context, &command.uuid).await?;
+                handler_watch_config::handler_watch_config(&self.context, &command.uuid).await?;
             }
             CommandType::CancelCmd =>
             {
-                cmd_cancel::cmd_cancel(&self.context, &command.uuid, &command.params).await?;
+                handler_cancel::handler_cancel(&self.context, &command.uuid, &command.params).await?;
             }
         }
         Ok(())

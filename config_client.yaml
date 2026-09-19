@@ -2,7 +2,7 @@ version: 1
 mode: tcpclient
 settings:
     host:
-      address: "192.168.0.19"
+      address: "192.168.0.20"
       port: 8080
     window:
         screen: 0

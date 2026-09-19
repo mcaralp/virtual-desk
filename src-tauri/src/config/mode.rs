@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::config::{WindowConfig, PageConfig, WidgetConfig};
+use super::{WindowConfig, PageConfig, WidgetConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "mode", content = "settings", rename_all = "lowercase")]

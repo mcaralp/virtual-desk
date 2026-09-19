@@ -22,6 +22,7 @@ impl TcpClient
     {
         if self.client.is_none()
         {
+            println!("Attempting to connect to server at {}:{}", self.address, self.port);
             let res = TcpStream::connect((self.address.as_str(), self.port)).await;
             match res {
                 Ok(socket) => {
