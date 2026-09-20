@@ -20,19 +20,19 @@ impl TransportTcpClient
     pub async fn connect(&mut self)
         -> Result<(), Error>
     {
-        if self.client.is_none()
+        if self.client.is_some()
         {
-            println!("Attempting to connect to server at {}:{}", self.address, self.port);
-            let res = TcpStream::connect((self.address.as_str(), self.port)).await;
-            match res {
-                Ok(socket) => {
-                    println!("Successfully connected to server at {}:{}", self.address, self.port);
-                    self.client = Some(socket);
-                }
-                Err(e) => {
-                    eprintln!("Failed to connect to server: {e}");
-                    return Err(Error::from(e));
-                }
+            return Ok(());
+        }
+    
+        println!("Attempting to connect to server at {}:{}", self.address, self.port);
+        let res = TcpStream::connect((self.address.as_str(), self.port)).await;
+        match res {
+            Ok(socket) => {
+                self.client = Some(socket);
+            }
+            Err(e) => {
+                return Err(Error::from(e));
             }
         }
         Ok(())
@@ -77,5 +77,16 @@ impl TransportTcpClient
             }
         }
         Err(Error::NoClientConnected)
+    }
+
+    pub async fn stop(&mut self)
+        -> Result<(), Error>
+    {
+        if let Some(client) = &mut self.client
+        {
+            let _ = client.shutdown().await;
+        }
+        self.client = None;
+        Ok(())
     }
 }

@@ -32,13 +32,11 @@ impl TransportTcpServer
             let result = listener.accept().await;
             match result
             {
-                Ok((socket, addr)) => {
-                    println!("Accepted connection from {}", addr);
+                Ok((socket, _)) => {
                     self.client = Some(socket);
                     return Ok(())
                 }
                 Err(e) => {
-                    eprintln!("Failed to accept connection: {e}");
                     return Err(Error::from(e));
                 }
             }
@@ -52,6 +50,7 @@ impl TransportTcpServer
         if let Some(client) = &mut self.client
         {
             let res = client.read_buf(buffer).await;
+            println!("Read result: {:?}", res);
             match res {
                 Ok(0) => {
                     eprintln!("Client disconnected");
@@ -85,5 +84,16 @@ impl TransportTcpServer
             }
         }
         Err(Error::NoClientConnected)
+    }
+
+    pub async fn stop(&mut self)
+        -> Result<(), Error>
+    {
+        if let Some(client) = &mut self.client
+        {
+            let _ = client.shutdown().await;
+        }
+        self.client = None;
+        Ok(())
     }
 }

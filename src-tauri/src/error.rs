@@ -38,6 +38,14 @@ pub enum Error
     ClientDisconnected,
     #[error("No client connected")]
     NoClientConnected,
+    #[error("SSH error: {0}")]
+    SshError(#[from] russh::Error),
+    #[error("SSH key error: {0}")]
+    SshKeyError(#[from] russh::keys::Error),
+    #[error("SSH key parsing error: {0}")]
+    SshKeyParsingError(#[from] russh::keys::ssh_key::Error),
+    #[error("SSH authentication failed")]
+    SshAuthenticationFailed,
     #[error("{0}")]
     Other(String),
 }

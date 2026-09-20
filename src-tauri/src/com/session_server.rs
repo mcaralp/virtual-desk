@@ -1,13 +1,14 @@
 use serde_json::from_slice;
 use tokio_util::bytes::BytesMut;
-
+use tokio::time::{sleep, Duration};
 use super::transport::Transport;
+use super::frame::{encode_frame, decode_frame};
 use crate::command::{CommandResponse, CommandBusReceiver};
 use crate::emitter::Emitter;
 use crate::error::Error;
 use crate::config::{ConfigReceiver, TransportConfig};
 
-use super::frame::{encode_frame, decode_frame};
+const LISTEN_DELAY: std::time::Duration = Duration::from_millis(1000);
 
 pub struct SessionServer
 {
@@ -30,7 +31,9 @@ impl SessionServer
     pub async fn run(&mut self)
         -> Result<(), Error>
     {
-        self.accept_connections().await
+        let res = self.accept_connections().await;
+        self.transport.stop().await?;
+        res
     }
 
     async fn accept_connections(&mut self)
@@ -44,6 +47,7 @@ impl SessionServer
                         Ok(()) => {
                             println!("Accepted connection");
                             self.buffer.clear();
+                            self.transport.post_connect().await?;
                             self.handle_connection().await
                         }
                         Err(e) => {
@@ -74,6 +78,8 @@ impl SessionServer
                 Err(Error::ConfigChanged) => return Err(Error::ConfigChanged),
                 Err(e) => eprintln!("Connection error, awaiting new connection: {e}"),
             }
+
+            sleep(LISTEN_DELAY).await;
         }
     }
 

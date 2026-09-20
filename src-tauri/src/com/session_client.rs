@@ -34,6 +34,7 @@ impl SessionClient
         -> Result<(), Error>
     {
         let res = self.handle_connection().await;
+        self.transport.stop().await?;
         res
     }
 
@@ -84,8 +85,8 @@ impl SessionClient
         loop
         {
             let result: Result<(), Error> = tokio::select! {
-                result = self.transport.read(&mut self.buffer) => {
-                    match result {
+                res = self.transport.read(&mut self.buffer) => {
+                    match res {
                         Ok(_) => {
                             self.handle_incoming_data().await?;
                         }

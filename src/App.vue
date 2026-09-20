@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from "vue"
 import { availableMonitors, getCurrentWindow, LogicalSize, LogicalPosition } from '@tauri-apps/api/window'
-import { type AppConfig } from './lib/Config.ts'
+import { type AppConfig, defaultConfig } from './lib/Config.ts'
 import { Command } from './lib/Command'
 import { CommandType } from './lib/CommandTypes'
 import Grid from './Grid.vue'
@@ -31,29 +31,21 @@ function rotatePoint(x: number, y: number, width: number, height: number, rotati
 }
 
 const config = ref<AppConfig | null>(null)
+const error = ref<string | null>(null)
 
 const windowConfig = computed(() => {
-    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
-    {
-        return config.value.settings.window
-    }
-    return null
+    if (config.value === null) return null
+    return config.value.settings.window
 })
 
 const pagesConfig = computed(() => {
-    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
-    {
-        return config.value.settings.pages
-    }
-    return []
+    if (config.value === null) return []
+    return config.value.settings.pages
 })
 
 const widgetsConfig = computed(() => {
-    if (config.value?.mode === 'local' || config.value?.mode === 'tcpclient')
-    {
-        return config.value.settings.widgets
-    }
-    return []
+    if (config.value === null) return []
+    return config.value.settings.widgets
 })
 
 const rotation = computed(() => {
@@ -64,10 +56,6 @@ const rotation = computed(() => {
 watch(config, async (newConfig: AppConfig | null) => {
     if (newConfig === null) return 
   
-    console.log(newConfig)
-
-    if (newConfig.mode !== 'local' && newConfig.mode !== 'tcpclient') return
-
     const monitors = await availableMonitors()
 
     const windowConfig = newConfig.settings.window
@@ -147,20 +135,47 @@ const mainStyle = computed(() => {
     }
 })
 
-onMounted(async () => {
+function sleep(ms: number)
+{
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
 
-    try
-    {
-        const configRequest = await Command.init(CommandType.ReadConfigCommand, null)
-        config.value = await configRequest.read();
-    }
-    catch (e)
-    {
-        console.error(e)
-    }
-
+async function readConfig(firstLoad: boolean)
+{
     while(true)
     {
+        try
+        {
+            const configRequest = await Command.init(CommandType.ReadConfigCommand, null)
+            config.value = await configRequest.read()
+            error.value = null
+            break
+        }
+        catch (e)
+        {
+            console.log(e)
+            if(e instanceof Error)
+            {
+                error.value = e.message;
+            }
+            if(firstLoad)
+            {
+                config.value = defaultConfig()
+                firstLoad = false
+            }
+        }
+
+        await sleep(1000)
+    }
+}
+
+onMounted(async () => {
+
+    let firstLoad = true
+    while(true)
+    {
+        await readConfig(firstLoad)
+
         try
         {
             const watchConfigRequest = await Command.init(CommandType.WatchConfigCommand, null)
@@ -171,7 +186,10 @@ onMounted(async () => {
         }
         catch (e)
         {
-            console.error(e)
+            if(e instanceof Error)
+            {
+                error.value = e.message;
+            }
         }
     }
 })
@@ -180,7 +198,10 @@ onMounted(async () => {
 
 <template>
     <main class="container" :style="mainStyle">
-        <Grid v-if="pagesConfig.length > 0" :config="pagesConfig[0]" :widgets="widgetsConfig" />
+        <div v-if="error !== null" class="error">
+            <div class="text">Failed to load configuration<br/>{{ error }}</div>
+        </div>
+        <Grid v-else-if="pagesConfig.length > 0" :config="pagesConfig[0]" :widgets="widgetsConfig" />
     </main>
 </template>
 
@@ -192,6 +213,26 @@ onMounted(async () => {
     line-height: 24px;
     font-weight: 400;
     color: #0f0f0f;
+}
+
+.error
+{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.error .text
+{
+    box-sizing: border-box;
+    border: 1px solid #dfe3e8;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 20px;
+    text-align: center;
+    line-height: 30px;
 }
 </style>
 

@@ -2,11 +2,15 @@ use crate::error::Error;
 use tokio_util::bytes::BytesMut;
 use super::transport_tcp_client::TransportTcpClient;
 use super::transport_tcp_server::TransportTcpServer;
+use super::transport_ssh_client::TransportSshClient;
+use super::transport_ssh_server::TransportSshServer;
 
 pub enum Transport
 {
     TcpServer(TransportTcpServer),
     TcpClient(TransportTcpClient),
+    SshClient(TransportSshClient),
+    SshServer(TransportSshServer),
 }
 
 impl Transport
@@ -22,6 +26,25 @@ impl Transport
             {
                 client.connect().await
             }
+            Transport::SshClient(client) =>
+            {
+                client.connect().await
+            }
+            Transport::SshServer(server) =>
+            {
+                server.connect().await
+            }
+        }
+    }
+
+    pub async fn post_connect(&mut self) -> Result<(), Error>
+    {
+        match self {
+            Transport::SshServer(server) =>
+            {
+                server.post_connect().await
+            },
+            _ => Ok(()),
         }
     }
 
@@ -35,6 +58,14 @@ impl Transport
             Transport::TcpClient(client) =>
             {
                 client.read(buffer).await
+            }
+            Transport::SshClient(client) =>
+            {
+                client.read(buffer).await
+            }
+            Transport::SshServer(server) =>
+            {
+                server.read(buffer).await
             }
         }
     }
@@ -50,6 +81,37 @@ impl Transport
             {
                 client.write(data).await
             }
+            Transport::SshClient(client) =>
+            {
+                client.write(data).await
+            }
+            Transport::SshServer(server) =>
+            {
+                server.write(data).await
+            }
         }
+    }
+
+    pub async fn stop(&mut self) -> Result<(), Error>
+    {
+        match self {
+            Transport::TcpServer(server) =>
+            {
+                server.stop().await?;
+            }
+            Transport::TcpClient(client) =>
+            {
+                client.stop().await?;
+            }
+            Transport::SshClient(client) =>
+            {
+                client.stop().await?;
+            }
+            Transport::SshServer(server) =>
+            {
+                server.stop().await?;
+            }
+        }
+        Ok(())
     }
 }

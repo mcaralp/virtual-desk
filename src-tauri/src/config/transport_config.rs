@@ -5,6 +5,8 @@ pub enum TransportConfig
 {
     TcpClient(Host),
     TcpServer(Host),
+    SshClient(Host),
+    SshServer(Host),
     Local
 }
 
@@ -17,6 +19,8 @@ impl From<Mode> for TransportConfig
             Mode::Local(_) => TransportConfig::Local,
             Mode::TcpServer(server) => TransportConfig::TcpServer(server.host),
             Mode::TcpClient(client) => TransportConfig::TcpClient(client.host),
+            Mode::SshClient(client) => TransportConfig::SshClient(client.host),
+            Mode::SshServer(server) => TransportConfig::SshServer(server.host),
         }
     }
 }

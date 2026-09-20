@@ -7,7 +7,9 @@ pub enum Mode
 {
     Local(LocalConfig),
     TcpServer(TcpServerConfig),
-    TcpClient(TcpClientConfig)
+    TcpClient(TcpClientConfig),
+    SshClient(SshClientConfig),
+    SshServer(SshServerConfig)
 }
 
 impl From<TcpClientConfig> for Mode {
@@ -25,6 +27,18 @@ impl From<TcpServerConfig> for Mode {
 impl From<LocalConfig> for Mode {
     fn from(config: LocalConfig) -> Self {
         Mode::Local(config)
+    }
+}
+
+impl From<SshClientConfig> for Mode {
+    fn from(config: SshClientConfig) -> Self {
+        Mode::SshClient(config)
+    }
+}
+
+impl From<SshServerConfig> for Mode {
+    fn from(config: SshServerConfig) -> Self {
+        Mode::SshServer(config)
     }
 }
 
@@ -78,4 +92,27 @@ pub struct TcpClientConfig
     pub window: WindowConfig,
     pub pages: Vec<PageConfig>,
     pub widgets: Vec<WidgetConfig>
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SshClientConfig
+{
+    #[serde(default)]
+    pub host: Host,
+    pub private_key_path: Option<String>,
+    #[serde(default)]
+    pub server_public_key_path: Option<String>,
+    pub window: WindowConfig,
+    pub pages: Vec<PageConfig>,
+    pub widgets: Vec<WidgetConfig>
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SshServerConfig
+{
+    #[serde(default)]
+    pub host: Host,
+    pub private_key_path: Option<String>,
+    #[serde(default)]
+    pub authorized_client_keys: Option<String>,
 }

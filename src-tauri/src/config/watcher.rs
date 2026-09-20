@@ -34,6 +34,11 @@ impl ConfigReceiver
         }
     }
 
+    pub fn config_path(&self) -> &str
+    {
+        &self.config_path
+    }
+
     pub fn read_config(&self) -> Result<AppConfig, Error>
     {
         util::read_config(&self.config_path)
