@@ -2,7 +2,7 @@ version: 1
 mode: sshserver
 settings:
     host:
-      address: "127.0.0.1"
+      address: 127.0.0.1
       port: 8080
       private_key_path: keys/server_ecdsa
       authorized_client_keys: keys/client_ecdsa.pub

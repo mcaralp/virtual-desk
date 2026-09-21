@@ -30,7 +30,7 @@ impl server::Handler for SshServerHandler
 {
     type Error = russh::Error;
 
-    async fn auth_none(&mut self, user: &str) -> Result<server::Auth, Self::Error> {
+    async fn auth_none(&mut self, _: &str) -> Result<server::Auth, Self::Error> {
         if  self.authorized_client_keys.is_some()
         {
             Ok(server::Auth::reject())
