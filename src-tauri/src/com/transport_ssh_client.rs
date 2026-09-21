@@ -68,7 +68,7 @@ impl TransportSshClient
     async fn authenticate_publickey(&self, session: &mut client::Handle<ClientHandler>, private_key: &str)
         -> Result<(), Error>
     {
-        let key = load_secret_key(private_key, None)?;
+        let key = self.load_private_key(private_key).await?;
         let best_hash = session.best_supported_rsa_hash().await?.flatten();
         let key_with_hash = PrivateKeyWithHashAlg::new(Arc::new(key), best_hash);
 
@@ -93,6 +93,27 @@ impl TransportSshClient
         }
 
         Ok(())
+    }
+
+    pub async fn load_private_key(&self, private_key_path: &str)
+        -> Result<ssh_key::PrivateKey, Error>
+    {
+        let private_key_path = self.normalize_path(&std::path::Path::new(&private_key_path));
+        Ok(load_secret_key(&private_key_path, None)?)
+    }
+
+    pub async fn load_server_public_key(&self) -> Result<Option<ssh_key::Fingerprint>, Error>
+    {
+        if let Some(path) = &self.server_public_key_path
+        {
+            let path = self.normalize_path(&std::path::Path::new(&path));
+            let key = load_public_key(path)?;
+            Ok(Some(key.fingerprint(ssh_key::HashAlg::Sha256)))
+        }
+        else
+        {
+            Ok(None)
+        }
     }
 
     pub async fn connect(&mut self)
@@ -120,16 +141,7 @@ impl TransportSshClient
     {
         if let Some(tcp_stream) = self.tcp_stream.take()
         {
-            let expected_server_key = match &self.server_public_key_path
-            {
-                Some(path) =>
-                {
-                    let path = self.normalize_path(&std::path::Path::new(&path));
-                    let key = load_public_key(path)?;
-                    Some(key.fingerprint(ssh_key::HashAlg::Sha256))
-                }
-                None => None,
-            };
+            let expected_server_key = self.load_server_public_key().await?;
 
             let config = Arc::new(client::Config::default());
             let handler = ClientHandler { expected_server_key };

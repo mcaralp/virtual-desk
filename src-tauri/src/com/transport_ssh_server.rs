@@ -31,7 +31,6 @@ impl server::Handler for SshServerHandler
     type Error = russh::Error;
 
     async fn auth_none(&mut self, user: &str) -> Result<server::Auth, Self::Error> {
-        println!("Authenticating none for user: {}", user);
         if  self.authorized_client_keys.is_some()
         {
             Ok(server::Auth::reject())
@@ -45,7 +44,6 @@ impl server::Handler for SshServerHandler
     async fn auth_publickey(&mut self, _user: &str, key: &russh::keys::ssh_key::PublicKey)
         -> Result<server::Auth, russh::Error>
     {
-        println!("Authenticating public key: {:?}", key.fingerprint(ssh_key::HashAlg::Sha256));
         match &self.authorized_client_keys
         {
             Some(keys) =>
@@ -151,7 +149,6 @@ impl TransportSshServer
         if let Some(private_key_path) = &self.private_key_path
         {
             let private_key_path = self.normalize_path(&std::path::Path::new(&private_key_path));
-            println!("Loading private key from path: {:?}", private_key_path);
             Ok(load_secret_key(&private_key_path, None)?)
         }
         else

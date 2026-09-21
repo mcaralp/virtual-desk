@@ -17,8 +17,8 @@ impl ComSshClient
             &config.host.address,
             config.host.port,
             config_receiver.config_path(),
-            config.private_key_path.as_deref(),
-            config.server_public_key_path.as_deref(),
+            config.host.private_key_path.as_deref(),
+            config.host.server_public_key_path.as_deref(),
         ));
         let mode = Mode::from(config);
         let client = SessionClient::new(config_receiver, transport, TransportConfig::from(mode));

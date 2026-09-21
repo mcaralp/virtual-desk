@@ -1,12 +1,12 @@
-use super::{Host, Mode};
+use super::{HostTcp, HostSshClient, HostSshServer, Mode};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransportConfig
 {
-    TcpClient(Host),
-    TcpServer(Host),
-    SshClient(Host),
-    SshServer(Host),
+    TcpClient(HostTcp),
+    TcpServer(HostTcp),
+    SshClient(HostSshClient),
+    SshServer(HostSshServer),
     Local
 }
 

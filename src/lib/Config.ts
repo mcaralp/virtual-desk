@@ -46,10 +46,18 @@ export interface WindowConfig
     pinned: boolean
 }
 
-export interface Host
+export interface HostTcp
 {
     address: string
     port: number
+}
+
+export interface HostSshClient
+{
+    address: string
+    port: number
+    private_key_path?: string
+    server_public_key_path?: string
 }
 
 export interface LocalConfig
@@ -61,7 +69,7 @@ export interface LocalConfig
 
 export interface TcpClientConfig
 {
-    host: Host
+    host: HostTcp
     window: WindowConfig
     pages: PageConfig[]
     widgets: WidgetConfig[]
@@ -69,7 +77,7 @@ export interface TcpClientConfig
 
 export interface SshClientConfig
 {
-    host: Host
+    host: HostSshClient
     private_key_path: string
     server_public_key_path: string
     window: WindowConfig

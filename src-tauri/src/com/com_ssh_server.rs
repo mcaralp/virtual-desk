@@ -22,8 +22,8 @@ impl ComSshServer
             &config.host.address,
             config.host.port,
             config_receiver.config_path(),
-            config.private_key_path.as_deref(),
-            config.authorized_client_keys.as_deref()
+            config.host.private_key_path.as_deref(),
+            config.host.authorized_client_keys.as_deref()
         ));
         let mode = Mode::from(config);
         let server = SessionServer::new(config_receiver, command_receiver, emitter, transport, TransportConfig::from(mode));

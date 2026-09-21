@@ -23,6 +23,14 @@ fn setup(app: &mut tauri::App)
     Ok(())
 }
 
+fn event_handler(_app_handle: &tauri::AppHandle, event: tauri::RunEvent)
+{
+    if let tauri::RunEvent::ExitRequested { api, .. } = event
+    {
+        api.prevent_exit();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
@@ -31,6 +39,7 @@ pub fn run()
         .invoke_handler(tauri::generate_handler![
             command::exec_command
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(event_handler);
 }
