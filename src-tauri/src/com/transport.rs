@@ -40,6 +40,10 @@ impl Transport
     pub async fn post_connect(&mut self) -> Result<(), Error>
     {
         match self {
+            Transport::SshClient(client) =>
+            {
+                client.post_connect().await
+            }
             Transport::SshServer(server) =>
             {
                 server.post_connect().await

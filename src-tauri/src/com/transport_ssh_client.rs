@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tokio_util::bytes::BytesMut;
+use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use russh::client::{self, Msg};
 use russh::keys::{load_public_key, load_secret_key, PrivateKeyWithHashAlg, ssh_key};
@@ -31,6 +32,7 @@ pub struct TransportSshClient
     config_path: String,
     private_key_path: Option<String>,
     server_public_key_path: Option<String>,
+    tcp_stream: Option<TcpStream>,
     stream: Option<ChannelStream<Msg>>,
 }
 
@@ -45,6 +47,7 @@ impl TransportSshClient
             config_path: config_path.to_string(),
             private_key_path: private_key_path.map(|s| s.to_string()),
             server_public_key_path: server_public_key_path.map(|s| s.to_string()),
+            tcp_stream: None,
             stream: None,
         }
     }
@@ -95,42 +98,61 @@ impl TransportSshClient
     pub async fn connect(&mut self)
         -> Result<(), Error>
     {
-        if self.stream.is_some()
+        if self.stream.is_some() || self.tcp_stream.is_some()
         {
             return Ok(());
         }
-
-        let expected_server_key = match &self.server_public_key_path
-        {
-
-            Some(path) =>
-            {
-                let path = self.normalize_path(&std::path::Path::new(&path));
-                let key = load_public_key(path)?;
-                Some(key.fingerprint(ssh_key::HashAlg::Sha256))
-            }
-            None => None,
-        };
-
-        let config = Arc::new(client::Config::default());
-        let handler = ClientHandler { expected_server_key };
-        let mut session = client::connect(config, (self.address.as_str(), self.port), handler).await?;
     
-        if let Some(private_key) = &self.private_key_path
+        let res = TcpStream::connect((self.address.as_str(), self.port)).await;
+        match res{
+            Ok(socket) => {
+                self.tcp_stream = Some(socket);
+            }
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn post_connect(&mut self)
+        -> Result<(), Error>
+    {
+        if let Some(tcp_stream) = self.tcp_stream.take()
         {
-            if self.authenticate_publickey(&mut session, private_key).await.is_err()
+            let expected_server_key = match &self.server_public_key_path
+            {
+                Some(path) =>
+                {
+                    let path = self.normalize_path(&std::path::Path::new(&path));
+                    let key = load_public_key(path)?;
+                    Some(key.fingerprint(ssh_key::HashAlg::Sha256))
+                }
+                None => None,
+            };
+
+            let config = Arc::new(client::Config::default());
+            let handler = ClientHandler { expected_server_key };
+            let mut session = client::connect_stream(config, tcp_stream, handler).await?;
+        
+            if let Some(private_key) = &self.private_key_path
+            {
+                self.authenticate_publickey(&mut session, private_key).await?;
+            }
+            else
             {
                 self.authenticate_none(&mut session).await?;
             }
+
+            let channel = session.channel_open_session().await?;
+            self.stream = Some(channel.into_stream());
+            Ok(())
         }
         else
         {
-            self.authenticate_none(&mut session).await?;
+            Err(Error::NoClientConnected)
         }
 
-        let channel = session.channel_open_session().await?;
-        self.stream = Some(channel.into_stream());
-        Ok(())
     }
 
     pub async fn read(&mut self, buffer: &mut BytesMut)
@@ -161,7 +183,6 @@ impl TransportSshClient
     pub async fn write(&mut self, data: &[u8])
         -> Result<(), Error>
     {
-        println!("Writing data: {:?}", data);
         if let Some(stream) = &mut self.stream
         {
             let res = stream.write_all(data).await;
@@ -183,11 +204,15 @@ impl TransportSshClient
     pub async fn stop(&mut self)
         -> Result<(), Error>
     {
-        if let Some(stream) = &mut self.stream
+        if let Some(mut tcp_stream) = self.tcp_stream.take()
+        {
+            let _ = tcp_stream.shutdown().await;
+        }
+        if let Some(mut stream) = self.stream.take()
         {
             let _ = stream.shutdown().await;
         }
-        self.stream = None;
+    
         Ok(())
     }
 }

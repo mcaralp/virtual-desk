@@ -3,7 +3,7 @@ use tokio_util::bytes::BytesMut;
 use tokio::time::{sleep, Duration};
 use super::transport::Transport;
 use super::frame::{encode_frame, decode_frame};
-use crate::command::{CommandResponse, CommandBusReceiver};
+use crate::command::{CommandRequest, CommandResponse, CommandBusReceiver};
 use crate::emitter::Emitter;
 use crate::error::Error;
 use crate::config::{ConfigReceiver, TransportConfig};
@@ -47,13 +47,9 @@ impl SessionServer
                         Ok(()) => {
                             println!("Accepted connection");
                             self.buffer.clear();
-                            self.transport.post_connect().await?;
                             self.handle_connection().await
                         }
-                        Err(e) => {
-                            eprintln!("Failed to accept connection: {e}");
-                            Ok(())
-                        }
+                        Err(e) => Err(e),
                     }
                 }
                 res = self.command_receiver.recv() => {
@@ -86,32 +82,32 @@ impl SessionServer
     async fn handle_connection(&mut self)
         -> Result<(), Error>
     {
+        self.transport.post_connect().await?;
+
         loop
         {
             let result: Result<(), Error> = tokio::select! {
                 result = self.transport.read(&mut self.buffer) => {
                     match result {
-                        Ok(_) => {
-                            self.handle_incoming_data().await?;
-                        }
-                        Err(e) => return Err(e),
+                        Ok(_) => self.handle_incoming_data().await,
+                        Err(e) => Err(e),
                     }
-                    Ok(())
                 }
-                res = self.command_receiver.recv() => {
-                    let command = res?;
-                    self.requests_in_progress.push(command.uuid.clone());
-                    let data = encode_frame(0, &command)?;
-                    self.transport.write(&data).await?;
-                    Ok(())
-                }
-                _ = self.config_receiver.recv() => {
-                    self.check_config()?;
-                    Ok(())
-                }
+                res = self.command_receiver.recv() => self.handle_outgoing_command(res).await,
+                _ = self.config_receiver.recv() => self.check_config()
             };
             result?;
         }
+    }
+
+    async fn handle_outgoing_command(&mut self, res: Result<CommandRequest, Error>)
+        -> Result<(), Error>
+    {
+        let command = res?;
+        self.requests_in_progress.push(command.uuid.clone());
+        let data = encode_frame(0, &command)?;
+        self.transport.write(&data).await?;
+        Ok(())
     }
 
     async fn handle_incoming_data(&mut self)

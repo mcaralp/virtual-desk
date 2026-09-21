@@ -59,7 +59,7 @@ impl server::Handler for SshServerHandler
                 }
                 Ok(server::Auth::reject())
             },
-            None => Ok(server::Auth::Accept),
+            None => Ok(server::Auth::reject())
         }
     }
 
@@ -121,7 +121,7 @@ impl TransportSshServer
 
         if let Some(path) = &self.authorized_client_keys
         {
-            let path = self.normalize_path(&self.normalize_path(std::path::Path::new(&path)));
+            let path = self.normalize_path(std::path::Path::new(&path));
 
             let content = tokio::fs::read_to_string(path).await?;
             let mut fingerprints = Vec::<ssh_key::Fingerprint>::new();
@@ -151,6 +151,7 @@ impl TransportSshServer
         if let Some(private_key_path) = &self.private_key_path
         {
             let private_key_path = self.normalize_path(&std::path::Path::new(&private_key_path));
+            println!("Loading private key from path: {:?}", private_key_path);
             Ok(load_secret_key(&private_key_path, None)?)
         }
         else
@@ -173,7 +174,6 @@ impl TransportSshServer
         {
             let (stream, _) = self.listener.as_mut().unwrap().accept().await?;
             self.tcp_stream = Some(stream);
-
         }
 
         Ok(())
@@ -198,14 +198,18 @@ impl TransportSshServer
 
             self.running_session = Some(session);
             self.stream = Some(channel.into_stream());
+            Ok(())
         }
-        Ok(())
+        else
+        {
+            Err(Error::NoClientConnected)
+        }
     }
 
     pub async fn read(&mut self, buffer: &mut BytesMut)
         -> Result<usize, Error>
     {
-        if let Some(stream) = &mut self.stream
+        if let Some(stream) = self.stream.as_mut()
         {            
             let res = stream.read_buf(buffer).await;
             match res
@@ -230,7 +234,7 @@ impl TransportSshServer
     pub async fn write(&mut self, data: &[u8])
         -> Result<(), Error>
     {
-        if let Some(stream) = &mut self.stream
+        if let Some(stream) = self.stream.as_mut()
         {
             let res = stream.write_all(data).await;
             match res
@@ -255,8 +259,16 @@ impl TransportSshServer
         {
             session.handle().disconnect(Disconnect::ByApplication, "Server stopped".into(), "en".into()).await?;
         }
-        self.stream = None;
-        self.running_session = None;
+        if let Some(mut tcp_stream) = self.tcp_stream.take()
+        {
+            let _ = tcp_stream.shutdown().await;
+        }
+
+        if let Some(mut stream) = self.stream.take()
+        {
+            let _ = stream.shutdown().await;
+        }
+        self.listener = None;
         Ok(())
     }
 }

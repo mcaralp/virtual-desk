@@ -89,11 +89,11 @@ impl TransportTcpServer
     pub async fn stop(&mut self)
         -> Result<(), Error>
     {
-        if let Some(client) = &mut self.client
+        if let Some(mut client) = self.client.take()
         {
             let _ = client.shutdown().await;
         }
-        self.client = None;
+        self.listener = None;
         Ok(())
     }
 }

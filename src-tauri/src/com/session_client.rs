@@ -51,10 +51,7 @@ impl SessionClient
                             self.buffer.clear();
                             self.handle_socket().await
                         }
-                        Err(e) => {
-                            eprintln!("Failed to connect to remote server: {e}");
-                            Ok(())
-                        }
+                        Err(e) => Err(e)
                     }
                 }
                 _ = self.config_receiver.recv() => {
@@ -82,33 +79,33 @@ impl SessionClient
     async fn handle_socket(&mut self)
         -> Result<(), Error>
     {
+        self.transport.post_connect().await?;
+    
         loop
         {
             let result: Result<(), Error> = tokio::select! {
                 res = self.transport.read(&mut self.buffer) => {
                     match res {
-                        Ok(_) => {
-                            self.handle_incoming_data().await?;
-                        }
-                        Err(e) => return Err(e)
+                        Ok(_) => self.handle_incoming_data().await,
+                        Err(e) => Err(e),
                     }
-                    Ok(())
                 }
-                res = self.response_receiver.recv() => {
-                    if let Some(response) = res
-                    {
-                        let data = encode_frame(0, &response)?;
-                        self.transport.write(&data).await?;
-                    }
-                    Ok(())
-                }
-                _ = self.config_receiver.recv() => {
-                    self.check_config()?;
-                    Ok(())
-                }
+                res = self.response_receiver.recv() => self.handle_outgoing_data(res).await,
+                _ = self.config_receiver.recv() => self.check_config()
             };
             result?;
         }
+    }
+
+    async fn handle_outgoing_data(&mut self, res: Option<CommandResponse>)
+        -> Result<(), Error>
+    {
+        if let Some(response) = res
+        {
+            let data = encode_frame(0, &response)?;
+            self.transport.write(&data).await?;
+        }
+        Ok(())
     }
 
     async fn handle_incoming_data(&mut self)

@@ -87,7 +87,9 @@ pub fn setup(config_path: String, app: tauri::AppHandle)
                 },
                 Err(e) =>
                 {
-                    eprintln!("Error reading config, retrying: {:?}", e);
+                    eprintln!("Error reading config, waiting for changes: {:?}", e);
+                    let mut receiver = config_watcher.subscribe();
+                    let _ = receiver.recv().await;
                 }
             }
 
